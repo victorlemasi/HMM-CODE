@@ -13,9 +13,11 @@ A quantitative tool to scan multiple currency pairs using Clustering for asset g
 1. **Clone the repository** (if applicable) or navigate to the project directory.
 
 2. **Set up a Virtual Environment (Recommended)**:
+   We recommend using Python 3.12 to avoid compilation issues with `hmmlearn`.
    ```powershell
-   python -m venv .venv
-   .\.venv\Scripts\Activate.ps1
+   # Use the Python Launcher to specify version 3.12
+   py -3.12 -m venv .venv312
+   .\.venv312\Scripts\Activate.ps1
    ```
 
 3. **Install Dependencies**:
@@ -27,7 +29,7 @@ A quantitative tool to scan multiple currency pairs using Clustering for asset g
 
 1. **Activate the virtual environment**:
    ```powershell
-   .\.venv\Scripts\Activate.ps1
+   .\.venv312\Scripts\Activate.ps1
    ```
 
 2. **Run the analysis**:
