@@ -3,21 +3,22 @@ import pandas as pd
 from typing import List, Dict
 from config import CURRENCY_PAIRS, INTERVAL, PERIOD
 
-def fetch_data() -> Dict[str, pd.DataFrame]:
+def fetch_data(tickers: List[str], interval: str, period: str) -> Dict[str, pd.DataFrame]:
     """
-    Fetches historical data for the currency pairs defined in config.
+    Fetches historical data for the given tickers.
     Returns a dictionary of DataFrames.
     """
     data = {}
-    for pair in CURRENCY_PAIRS:
+    for pair in tickers:
         print(f"Fetching data for {pair}...", end=" ")
-        df = yf.download(pair, interval=INTERVAL, period=PERIOD, progress=False)
+        df = yf.download(pair, interval=interval, period=period, progress=False)
         if not df.empty:
             # Handle potential MultiIndex columns
             if isinstance(df.columns, pd.MultiIndex):
                 df.columns = df.columns.get_level_values(0)
             
             if 'Close' in df.columns:
+                df['Returns'] = df['Close'].pct_change()
                 data[pair] = df
                 print("Done.")
             else:

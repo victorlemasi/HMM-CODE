@@ -2,20 +2,29 @@ import pandas as pd
 from data_fetcher import fetch_data, get_returns_matrix
 from clustering import cluster_assets, plot_clusters
 from hmm_analysis import detect_breakout
-from config import CURRENCY_PAIRS
+from config import CURRENCY_PAIRS, INTERVAL, PERIOD, N_CLUSTERS, GPR_SPIKE_THRESHOLD, SAFE_HAVEN_TICKER
+from gpr_fetcher import fetch_latest_gpr
 
 def main():
-    print("=== Currency Pair Analysis Pipeline ===")
+    # 0. GPR Risk Assessment
+    print("\n--- Geopolitical Risk (GPR) Assessment ---")
     
-    # 1. Fetch Data
-    data = fetch_data()
+    gpr_val, is_gpr_spike, gpr_msg = fetch_latest_gpr(threshold_std=GPR_SPIKE_THRESHOLD)
+    print(gpr_msg)
+    
+    # 1. Fetch data
+    print("\n=== Currency Pair Analysis Pipeline ===")
+    data = fetch_data(CURRENCY_PAIRS, INTERVAL, PERIOD)
+    
     if not data:
-        print("Error: No data fetched.")
+        print("No data fetched. Exiting.")
         return
     
     # 2. Clustering Analysis
     print("\n--- Running Clustering Analysis ---")
-    returns_df = get_returns_matrix(data)
+    returns_df = pd.DataFrame({p: df['Returns'] for p, df in data.items()}).dropna()
+    print(f"Returns Matrix built: {returns_df.shape}")
+    
     cluster_mapping, correlation_matrix = cluster_assets(returns_df)
     plot_clusters(correlation_matrix, cluster_mapping)
     print("Clustering complete. Saved 'correlation_clusters.png'.")
@@ -41,10 +50,25 @@ def main():
     summary['State'] = pd.Series(breakout_states)
     summary['Direction'] = pd.Series(breakout_directions)
     
+    # GPR Logic: Safe Haven Mode
+    print("\n--- Risk Overlay ---")
+    if is_gpr_spike:
+        print("!!! WARNING: GEOPOLITICAL RISK SPIKING !!!")
+        print("ACTION: Switching to SAFE HAVEN mode.")
+        print("RECOM: Reduce ALL leverage by 50%.")
+        print(f"FOCUS: Prioritize {SAFE_HAVEN_TICKER} (Gold) signals.")
+    else:
+        print("GPR Risk: Normal. Standard risk management applies.")
+    
     # Diversification Check
     from rebalancer import diversify_signals, find_correlation_hedges
     diversified = diversify_signals(summary)
     hedges = find_correlation_hedges(summary)
+    
+    # If GPR Spiking, focus diversified picks on Safe Haven if available
+    if is_gpr_spike and SAFE_HAVEN_TICKER in summary.index:
+        if summary.loc[SAFE_HAVEN_TICKER, 'State'] == 'BREAKOUT':
+            print(f"\n[ALERT] Safe Haven {SAFE_HAVEN_TICKER} is in BREAKOUT!")
     
     print("\n--- Raw Analysis ---")
     print(summary.sort_values(by=['Cluster', 'State']))
@@ -56,6 +80,7 @@ def main():
         print("No breakout signals detected for diversification.")
         
     print("\n--- Market Neutral Correlation Hedges ---")
+    # In High Risk, Hedges are preferred over naked breakouts
     if hedges:
         for h in hedges:
             print(f"Hedge: {h['Pair_A']} ({h['Dir_A']}) vs {h['Pair_B']} ({h['Dir_B']}) [Clusters {h['Cluster_A']} & {h['Cluster_B']}]")
