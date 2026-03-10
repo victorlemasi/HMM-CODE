@@ -50,7 +50,11 @@ def detect_breakout(df: pd.DataFrame):
         avg_ret = state_returns[breakout_state]
         direction = "LONG" if avg_ret > 0 else "SHORT"
     
-    return is_breakout, direction, states, breakout_state
+    # Historical logic for backtesting
+    # We return a Series aligned with df index
+    hist_states = pd.Series(states, index=df.index)
+    
+    return is_breakout, direction, hist_states, breakout_state
 
 if __name__ == "__main__":
     pass
