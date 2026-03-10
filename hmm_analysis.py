@@ -31,8 +31,11 @@ def detect_breakout(df: pd.DataFrame):
     # Identify the "Breakout" state
     # We define it as the state with the highest mean Volatility OR highest mean Range
     state_means = []
+    state_returns = []
     for i in range(HMM_COMPONENTS):
-        state_means.append(features[states == i].mean(axis=0))
+        mask = (states == i)
+        state_means.append(features[mask].mean(axis=0))
+        state_returns.append(df['Returns'].values[mask].mean())
     
     state_means = np.array(state_means)
     # Volatility is index 1, Range is index 2
@@ -41,7 +44,13 @@ def detect_breakout(df: pd.DataFrame):
     current_state = states[-1]
     is_breakout = (current_state == breakout_state)
     
-    return is_breakout, states, breakout_state
+    # Direction
+    direction = "None"
+    if is_breakout:
+        avg_ret = state_returns[breakout_state]
+        direction = "LONG" if avg_ret > 0 else "SHORT"
+    
+    return is_breakout, direction, states, breakout_state
 
 if __name__ == "__main__":
     pass
