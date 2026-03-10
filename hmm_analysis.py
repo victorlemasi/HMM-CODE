@@ -8,21 +8,29 @@ def detect_breakout(df: pd.DataFrame):
     """
     Fits an HMM to detect price regimes based on returns and volatility.
     """
-    # Feature Engineering
+    # Feature Engineering (Enhanced for Sensitivity)
     df = df.copy()
-    df['Returns'] = df['Close'].pct_change()
+    # Log Returns for statistical robustness
+    df['Returns'] = np.log(df['Close'] / df['Close'].shift(1))
+    
+    # Range feature (High-Low spread)
     df['Range'] = (df['High'] - df['Low']) / df['Close']
-    df['Volatility'] = df['Returns'].rolling(window=20).std()
+    
+    # Sensitivity: Use shorter 10-period volatility instead of 20
+    df['Volatility'] = df['Returns'].rolling(window=10).std()
+    
+    # Momentum: Difference between short-term and medium-term returns
+    df['Momentum'] = df['Returns'].rolling(window=5).mean() - df['Returns'].rolling(window=20).mean()
     
     df = df.dropna()
     
     # Features for HMM
-    features = df[['Returns', 'Volatility', 'Range']].values
+    features = df[['Returns', 'Volatility', 'Range', 'Momentum']].values
     scaler = StandardScaler()
     features_scaled = scaler.fit_transform(features)
     
     # Model Setup
-    model = GaussianHMM(n_components=HMM_COMPONENTS, covariance_type="full", n_iter=1000)
+    model = GaussianHMM(n_components=HMM_COMPONENTS, covariance_type="full", n_iter=1000, random_state=42)
     model.fit(features_scaled)
     
     # Predict states

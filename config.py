@@ -16,7 +16,7 @@ PERIOD = '60d'   # 60 days lookback
 N_CLUSTERS = 4
 
 # HMM settings
-HMM_COMPONENTS = 3  # Stable, Trend, Breakout
+HMM_COMPONENTS = 4  # Expanded: Stable, Trend, Breakout, Noise
 
 # GPR Integration Settings
 GPR_SPIKE_THRESHOLD = 2.0  # Std deviations for a spike
