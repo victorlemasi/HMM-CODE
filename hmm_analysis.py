@@ -47,14 +47,15 @@ def detect_breakout(df: pd.DataFrame):
     
     for n in range(3, 6): # Try 3, 4, 5 states
         try:
-            model = GaussianHMM(n_components=n, covariance_type="full", n_iter=1000, random_state=42)
+            # Switch to 'diag' covariance for better convergence on multi-feature data
+            model = GaussianHMM(n_components=n, covariance_type="diag", n_iter=1000, tol=1e-2, random_state=42)
             model.fit(features_scaled)
             bic = model.bic(features_scaled)
             if bic < best_bic:
                 best_bic = bic
                 best_model = model
                 best_n = n
-        except:
+        except Exception as e:
             continue
             
     if best_model is None:
@@ -66,15 +67,24 @@ def detect_breakout(df: pd.DataFrame):
     # 3. Regime Mapping (Labeling)
     # Define "Breakout" as state with highest (Volatility + Range)
     state_metrics = []
+    # Count occurrences of each state to avoid empty slices
+    unique_states, counts = np.unique(states, return_counts=True)
+    state_counts = dict(zip(unique_states, counts))
+
     for i in range(best_n):
-        mask = (states == i)
-        # return_mean, vol_mean, range_mean
-        metrics = {
-            'id': i,
-            'vol': features[mask, 1].mean(),
-            'range': features[mask, 2].mean(),
-            'ret': df['Returns'].values[mask].mean()
-        }
+        # Robustly handle states that might not have any predictions (unlikely but possible after fit)
+        if i in state_counts and state_counts[i] > 0:
+            mask = (states == i)
+            metrics = {
+                'id': i,
+                'vol': features[mask, 1].mean(),
+                'range': features[mask, 2].mean(),
+                'ret': df['Returns'].values[mask].mean()
+            }
+        else:
+            # Fallback for empty states to avoid runtime warnings
+            metrics = {'id': i, 'vol': 0, 'range': 0, 'ret': 0}
+            
         state_metrics.append(metrics)
     
     # Sort states by high-activity (Vol + Range)
@@ -86,7 +96,9 @@ def detect_breakout(df: pd.DataFrame):
     labels[sorted_states[0]['id']] = "Consolidation"
     labels[sorted_states[-1]['id']] = "Breakout"
     for i in range(1, best_n - 1):
-        labels[sorted_states[i]['id']] = "Trend" if abs(sorted_states[i]['ret']) > 0.0001 else "Stable"
+        state_id = sorted_states[i]['id']
+        state_ret = [s['ret'] for s in state_metrics if s['id'] == state_id][0]
+        labels[state_id] = "Trend" if abs(state_ret) > 0.0001 else "Stable"
 
     current_state_id = states[-1]
     regime = labels[current_state_id]
@@ -94,7 +106,7 @@ def detect_breakout(df: pd.DataFrame):
     is_breakout = (regime == "Breakout")
     direction = "None"
     if is_breakout or regime == "Trend":
-        avg_ret = labels_to_ret = [s['ret'] for s in state_metrics if s['id'] == current_state_id][0]
+        avg_ret = [s['ret'] for s in state_metrics if s['id'] == current_state_id][0]
         direction = "LONG" if avg_ret > 0 else "SHORT"
     
     hist_states = pd.Series(states, index=df.index)
