@@ -70,18 +70,33 @@ def main():
     exits = get_exit_recommendations(summary)
     hedges = find_correlation_hedges(summary[summary['Regime'] == 'Breakout'])
     
-    print("\n--- Raw Analysis ---")
-    print(summary[['Cluster', 'Regime', 'Direction']].sort_values(by=['Cluster', 'Regime']))
-    
-    print("\n--- Diversified Breakout Picks ---")
+    print("\n--- Breakout Assets (High Volatility) ---")
+    breakouts = summary[summary['Regime'] == 'Breakout']
+    if not breakouts.empty:
+        for idx, row in breakouts.iterrows():
+            print(f"Asset: {idx} | Direction: {row['Direction']} [Cluster {row['Cluster']}]")
+    else:
+        print("None detected.")
+
+    print("\n--- Trend Assets (Sustained Momentum) ---")
+    trends = summary[summary['Regime'] == 'Trend']
+    if not trends.empty:
+        for idx, row in trends.iterrows():
+            print(f"Asset: {idx} | Direction: {row['Direction']} [Cluster {row['Cluster']}]")
+    else:
+        print("None detected.")
+
+    print("\n--- Exit/Monitoring Recommendations ---")
+    if exits:
+        print(f"RECOMMENDATION: Consider closing or tightening stops on: {', '.join(exits)}")
+    else:
+        print("None.")
+
+    print("\n--- Diversified Picks (Max One Per Cluster) ---")
     if not diversified.empty:
         print(diversified[['Cluster', 'Direction']])
     else:
-        print("No breakout signals detected.")
-        
-    print("\n--- Exit/Profit-Taking Recommendations ---")
-    # Show assets that were previously trending/breaking but are now in Consolidation or Stable
-    print(f"Assets marked for Exit/Monitoring: {', '.join(exits[:5])}...")
+        print("No breakout signals for new entry.")
         
     print("\n--- Market Neutral Correlation Hedges ---")
     if hedges:
