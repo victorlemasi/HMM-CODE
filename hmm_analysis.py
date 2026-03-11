@@ -4,65 +4,102 @@ from hmmlearn.hmm import GaussianHMM
 from sklearn.preprocessing import StandardScaler
 from config import HMM_COMPONENTS
 
+def calculate_rsi(series, period=14):
+    delta = series.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+    rs = gain / loss
+    return 100 - (100 / (1 + rs))
+
 def detect_breakout(df: pd.DataFrame):
     """
-    Fits an HMM to detect price regimes based on returns and volatility.
+    Fits an HMM to detect price regimes using BIC for optimal state selection.
+    Features: Returns, Volatility, Range, Momentum, RSI, Vol/Vol Ratio.
     """
-    # Feature Engineering (Enhanced for Sensitivity)
     df = df.copy()
-    # Log Returns for statistical robustness
+    
+    # 1. Feature Engineering
     df['Returns'] = np.log(df['Close'] / df['Close'].shift(1))
-    
-    # Range feature (High-Low spread)
     df['Range'] = (df['High'] - df['Low']) / df['Close']
-    
-    # Sensitivity: Use shorter 10-period volatility instead of 20
     df['Volatility'] = df['Returns'].rolling(window=10).std()
-    
-    # Momentum: Difference between short-term and medium-term returns
     df['Momentum'] = df['Returns'].rolling(window=5).mean() - df['Returns'].rolling(window=20).mean()
+    df['RSI'] = calculate_rsi(df['Close'])
     
+    # Volume/Volatility Ratio (Efficiency)
+    if 'Volume' in df.columns:
+        # Use a small epsilon to avoid division by zero
+        df['Vol_Eff'] = df['Range'] / (df['Volume'].rolling(window=10).mean() + 1e-9)
+    else:
+        df['Vol_Eff'] = 0
+        
     df = df.dropna()
     
     # Features for HMM
-    features = df[['Returns', 'Volatility', 'Range', 'Momentum']].values
+    features_cols = ['Returns', 'Volatility', 'Range', 'Momentum', 'RSI', 'Vol_Eff']
+    features = df[features_cols].values
     scaler = StandardScaler()
     features_scaled = scaler.fit_transform(features)
     
-    # Model Setup
-    model = GaussianHMM(n_components=HMM_COMPONENTS, covariance_type="full", n_iter=1000, random_state=42)
-    model.fit(features_scaled)
+    # 2. Dynamic State Selection (BIC)
+    best_bic = np.inf
+    best_model = None
+    best_n = 3
     
-    # Predict states
+    for n in range(3, 6): # Try 3, 4, 5 states
+        try:
+            model = GaussianHMM(n_components=n, covariance_type="full", n_iter=1000, random_state=42)
+            model.fit(features_scaled)
+            bic = model.bic(features_scaled)
+            if bic < best_bic:
+                best_bic = bic
+                best_model = model
+                best_n = n
+        except:
+            continue
+            
+    if best_model is None:
+        raise ValueError("Could not fit HMM model")
+
+    model = best_model
     states = model.predict(features_scaled)
     
-    # Identify the "Breakout" state
-    # We define it as the state with the highest mean Volatility OR highest mean Range
-    state_means = []
-    state_returns = []
-    for i in range(HMM_COMPONENTS):
+    # 3. Regime Mapping (Labeling)
+    # Define "Breakout" as state with highest (Volatility + Range)
+    state_metrics = []
+    for i in range(best_n):
         mask = (states == i)
-        state_means.append(features[mask].mean(axis=0))
-        state_returns.append(df['Returns'].values[mask].mean())
+        # return_mean, vol_mean, range_mean
+        metrics = {
+            'id': i,
+            'vol': features[mask, 1].mean(),
+            'range': features[mask, 2].mean(),
+            'ret': df['Returns'].values[mask].mean()
+        }
+        state_metrics.append(metrics)
     
-    state_means = np.array(state_means)
-    # Volatility is index 1, Range is index 2
-    breakout_state = np.argmax(state_means[:, 1] + state_means[:, 2])
+    # Sort states by high-activity (Vol + Range)
+    sorted_states = sorted(state_metrics, key=lambda x: x['vol'] + x['range'])
     
-    current_state = states[-1]
-    is_breakout = (current_state == breakout_state)
+    # Map IDs to Labels
+    # Lowest vol = Consolidation, Highest = Breakout, others = Normal/Trend
+    labels = {}
+    labels[sorted_states[0]['id']] = "Consolidation"
+    labels[sorted_states[-1]['id']] = "Breakout"
+    for i in range(1, best_n - 1):
+        labels[sorted_states[i]['id']] = "Trend" if abs(sorted_states[i]['ret']) > 0.0001 else "Stable"
+
+    current_state_id = states[-1]
+    regime = labels[current_state_id]
     
-    # Direction
+    is_breakout = (regime == "Breakout")
     direction = "None"
-    if is_breakout:
-        avg_ret = state_returns[breakout_state]
+    if is_breakout or regime == "Trend":
+        avg_ret = labels_to_ret = [s['ret'] for s in state_metrics if s['id'] == current_state_id][0]
         direction = "LONG" if avg_ret > 0 else "SHORT"
     
-    # Historical logic for backtesting
-    # We return a Series aligned with df index
     hist_states = pd.Series(states, index=df.index)
     
-    return is_breakout, direction, hist_states, breakout_state
+    return is_breakout, direction, regime, current_state_id
 
 if __name__ == "__main__":
     pass

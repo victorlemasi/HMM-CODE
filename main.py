@@ -5,12 +5,17 @@ from hmm_analysis import detect_breakout
 from config import CURRENCY_PAIRS, INTERVAL, PERIOD, N_CLUSTERS, GPR_SPIKE_THRESHOLD, SAFE_HAVEN_TICKER
 from gpr_fetcher import fetch_latest_gpr
 
+from sentiment_fetcher import fetch_market_sentiment
+from rebalancer import diversify_signals, find_correlation_hedges, get_exit_recommendations
+
 def main():
-    # 0. GPR Risk Assessment
-    print("\n--- Geopolitical Risk (GPR) Assessment ---")
-    
+    # 0. Global Sentiment Assessment
+    print("\n--- Market Sentiment & Risk Assessment ---")
     gpr_val, is_gpr_spike, gpr_msg = fetch_latest_gpr(threshold_std=GPR_SPIKE_THRESHOLD)
     print(gpr_msg)
+    
+    sent_val, sent_class, sent_recom = fetch_market_sentiment()
+    print(f"Market Sentiment: {sent_val} ({sent_class}) -> RECOMMENDATION: {sent_recom}")
     
     # 1. Fetch data
     print("\n=== Currency Pair Analysis Pipeline ===")
@@ -20,70 +25,68 @@ def main():
         print("No data fetched. Exiting.")
         return
     
-    # 2. Clustering Analysis
+    # 2. Clustering Analysis (Optimized via Silhouette)
     print("\n--- Running Clustering Analysis ---")
     returns_df = pd.DataFrame({p: df['Returns'] for p, df in data.items()}).dropna()
-    print(f"Returns Matrix built: {returns_df.shape}")
-    
     cluster_mapping, correlation_matrix = cluster_assets(returns_df)
     plot_clusters(correlation_matrix, cluster_mapping)
-    print("Clustering complete. Saved 'correlation_clusters.png'.")
+    print("Clustering complete. Result saved to 'correlation_clusters.png'.")
     
-    # 3. HMM Breakout Analysis
-    print("\n--- Running HMM Breakout Detection ---")
-    breakout_states = {}
+    # 3. HMM Breakout Analysis (Enhanced with BIC and RSI)
+    print("\n--- Running HMM Regime Detection ---")
+    regime_results = {}
     breakout_directions = {}
     
     for pair, df in data.items():
         try:
-            is_breakout, direction, _, _ = detect_breakout(df)
-            breakout_states[pair] = "BREAKOUT" if is_breakout else "Normal"
-            breakout_directions[pair] = direction if is_breakout else "None"
+            is_breakout, direction, regime, _ = detect_breakout(df)
+            regime_results[pair] = regime
+            breakout_directions[pair] = direction
         except Exception as e:
             print(f"Error analyzing {pair}: {e}")
-            breakout_states[pair] = "Error"
+            regime_results[pair] = "Error"
             breakout_directions[pair] = "None"
     
     # 4. Final Summary
     print("\n=== Summary Report ===")
     summary = pd.DataFrame(index=returns_df.columns)
     summary['Cluster'] = cluster_mapping
-    summary['State'] = pd.Series(breakout_states)
+    summary['Regime'] = pd.Series(regime_results)
     summary['Direction'] = pd.Series(breakout_directions)
+    summary['State'] = summary['Regime'] # For compatibility with rebalancer
     
-    # GPR Logic: Safe Haven Mode
+    # Risk Overlay
     print("\n--- Risk Overlay ---")
     if is_gpr_spike:
         print("!!! WARNING: GEOPOLITICAL RISK SPIKING !!!")
         print("ACTION: Switching to SAFE HAVEN mode.")
-        print("RECOM: Reduce ALL leverage by 50%.")
         print(f"FOCUS: Prioritize {SAFE_HAVEN_TICKER} (Gold) signals.")
-    else:
-        print("GPR Risk: Normal. Standard risk management applies.")
     
+    if "Caution" in sent_recom:
+        print(f"ALERT: Sentiment {sent_class} suggests cautious positioning.")
+
     # Diversification & Hedging
-    from rebalancer import diversify_signals, find_correlation_hedges
-    diversified = diversify_signals(summary)
-    hedges = find_correlation_hedges(summary)
-    
-    # If GPR Spiking, focus diversified picks on Safe Haven if available
-    if is_gpr_spike and SAFE_HAVEN_TICKER in summary.index:
-        if summary.loc[SAFE_HAVEN_TICKER, 'State'] == 'BREAKOUT':
-            print(f"\n[ALERT] Safe Haven {SAFE_HAVEN_TICKER} is in BREAKOUT!")
+    diversified = diversify_signals(summary[summary['Regime'] == 'Breakout'])
+    exits = get_exit_recommendations(summary)
+    hedges = find_correlation_hedges(summary[summary['Regime'] == 'Breakout'])
     
     print("\n--- Raw Analysis ---")
-    print(summary.sort_values(by=['Cluster', 'State']))
+    print(summary[['Cluster', 'Regime', 'Direction']].sort_values(by=['Cluster', 'Regime']))
     
-    print("\n--- Diversified Picks (One per Cluster) ---")
+    print("\n--- Diversified Breakout Picks ---")
     if not diversified.empty:
         print(diversified[['Cluster', 'Direction']])
     else:
-        print("No breakout signals detected for diversification.")
+        print("No breakout signals detected.")
+        
+    print("\n--- Exit/Profit-Taking Recommendations ---")
+    # Show assets that were previously trending/breaking but are now in Consolidation or Stable
+    print(f"Assets marked for Exit/Monitoring: {', '.join(exits[:5])}...")
         
     print("\n--- Market Neutral Correlation Hedges ---")
     if hedges:
         for h in hedges:
-            print(f"Hedge: {h['Pair_A']} ({h['Dir_A']}) vs {h['Pair_B']} ({h['Dir_B']}) [Clusters {h['Cluster_A']} & {h['Cluster_B']}]")
+            print(f"Hedge: {h['Pair_A']} ({h['Dir_A']}) vs {h['Pair_B']} ({h['Dir_B']})")
     else:
         print("No hedging opportunities found.")
     

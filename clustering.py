@@ -6,22 +6,35 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from config import N_CLUSTERS
 
+from sklearn.metrics import silhouette_score
+
 def cluster_assets(returns_df: pd.DataFrame):
     """
-    Groups assets using Hierarchical Clustering based on correlation.
+    Groups assets using Hierarchical Clustering, optimizing N clusters via Silhouette Score.
     """
-    # Use correlation as distance metric
     corr = returns_df.corr()
-    
-    # Hierarchical Clustering
-    # We use 1 - correlation as the distance matrix
     dist = 1 - corr
     
-    clustering = AgglomerativeClustering(n_clusters=N_CLUSTERS, metric='precomputed', linkage='complete')
-    clusters = clustering.fit_predict(dist)
+    best_n = 2
+    best_score = -1
+    best_labels = None
     
-    # Store results
-    cluster_mapping = pd.Series(clusters, index=returns_df.columns, name='Cluster')
+    # Try different cluster counts
+    for n in range(2, 7): # Try 2 to 6 clusters
+        clustering = AgglomerativeClustering(n_clusters=n, metric='precomputed', linkage='complete')
+        labels = clustering.fit_predict(dist)
+        
+        # Silhouette score requires at least 2 clusters and samples
+        score = silhouette_score(dist, labels, metric='precomputed')
+        
+        if score > best_score:
+            best_score = score
+            best_n = n
+            best_labels = labels
+            
+    print(f"Optimal clusters found: {best_n} (Silhouette Score: {best_score:.3f})")
+    
+    cluster_mapping = pd.Series(best_labels, index=returns_df.columns, name='Cluster')
     
     return cluster_mapping, corr
 

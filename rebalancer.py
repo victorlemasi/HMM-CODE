@@ -15,6 +15,15 @@ def diversify_signals(summary: pd.DataFrame) -> pd.DataFrame:
     
     return diversified
 
+def get_exit_recommendations(summary: pd.DataFrame) -> List[str]:
+    """
+    Identifies assets that should be exited because they have left a 
+    high-convictions regime (e.g., no longer in Breakout or Trend).
+    """
+    # Assets NOT in Breakout or Trend should be considered for exit if they were previously held
+    exit_list = summary[~summary['State'].isin(['Breakout', 'Trend'])].index.tolist()
+    return exit_list
+
 def find_correlation_hedges(summary: pd.DataFrame) -> List[Dict]:
     """
     Identifies 'Market Neutral' opportunities where different clusters 
