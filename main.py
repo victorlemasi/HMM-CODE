@@ -70,6 +70,9 @@ def main():
     exits = get_exit_recommendations(summary)
     hedges = find_correlation_hedges(summary[summary['Regime'] == 'Breakout'])
     
+    print("\n--- Raw Analysis (All Pairs) ---", flush=True)
+    print(summary[['Cluster', 'Regime', 'Direction', 'State']].sort_values(by=['Cluster', 'Regime']), flush=True)
+    
     print("\n--- Breakout Assets (High Volatility) ---")
     breakouts = summary[summary['Regime'] == 'Breakout']
     if not breakouts.empty:
