@@ -5,7 +5,8 @@ A quantitative tool to scan multiple currency pairs using Clustering for asset g
 ## Features
 - **Data Acquisition**: Fetches hourly historical data for 20 currency pairs using `yfinance`.
 - **Clustering**: Groups assets with similar price action using Hierarchical Clustering.
-- **Breakout Detection**: Uses a 3-state Gaussian HMM (Stable, Trend, Breakout) to identify the current market regime for each pair.
+- **Breakout Detection**: Uses a 4-state Gaussian HMM (Stable, Trend, Breakout, Noise) to identify the current market regime for each pair.
+- **Geopolitical Risk (GPR) Overlay**: Integrates the Geopolitical Risk Index to adjust risk thresholds and trigger safe-haven modes during spikes.
 - **Visualization**: Generates a correlation heatmap of the clusters.
 
 ## Installation
@@ -50,6 +51,13 @@ If you see an error like `Microsoft Visual C++ 14.0 or greater is required` when
    - Select "Desktop development with C++" during installation.
 3. **Try a pre-built wheel**:
    - For some versions, you might find a wheel on [conda-forge](https://anaconda.org/conda-forge/hmmlearn) if you use Conda.
+
+### `xlrd` Missing Dependency
+If you see an error like `Missing optional dependency 'xlrd'`, ensure you have installed all requirements:
+```powershell
+pip install xlrd
+```
+This is required for reading the Geopolitical Risk data in Excel format.
 
 ## Output
 - `correlation_clusters.png`: A heatmap showing the correlation between currency pairs, ordered by clusters.
