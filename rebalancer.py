@@ -7,7 +7,7 @@ def diversify_signals(summary: pd.DataFrame) -> pd.DataFrame:
     Selection is based on 'State' (BREAKOUT) and then we pick the first one 
     in alphabetically sorted list or could be refined by volatility.
     """
-    breakouts = summary[summary['State'] == 'BREAKOUT'].copy()
+    breakouts = summary[summary['State'] == 'Breakout'].copy()
     
     # Group by cluster and pick the first one
     # This ensures diversification: only one position per correlated group.
@@ -29,7 +29,7 @@ def find_correlation_hedges(summary: pd.DataFrame) -> List[Dict]:
     Identifies 'Market Neutral' opportunities where different clusters 
     are breaking out in opposite directions.
     """
-    breakouts = summary[summary['State'] == 'BREAKOUT'].copy()
+    breakouts = summary[summary['State'] == 'Breakout'].copy()
     if breakouts.empty:
         return []
 
