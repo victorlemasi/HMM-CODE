@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from hmmlearn.hmm import GaussianHMM
 from sklearn.preprocessing import StandardScaler
-from config import HMM_COMPONENTS
+from config import HMM_COMPONENTS, ASSET_MAPPINGS, COMMODITY_TICKERS, YIELD_TICKERS
 
 def calculate_rsi(series, period=14):
     delta = series.diff()
@@ -11,10 +11,11 @@ def calculate_rsi(series, period=14):
     rs = gain / loss
     return 100 - (100 / (1 + rs))
 
-def detect_breakout(df: pd.DataFrame):
+def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = None):
     """
     Fits an HMM to detect price regimes using BIC for optimal state selection.
     Features: Returns, Volatility, Range, Momentum, RSI, Vol/Vol Ratio.
+    Asset-Specific Extras: Commodity Correlation or Yield levels.
     """
     df = df.copy()
     
@@ -27,15 +28,50 @@ def detect_breakout(df: pd.DataFrame):
     
     # Volume/Volatility Ratio (Efficiency)
     if 'Volume' in df.columns:
-        # Use a small epsilon to avoid division by zero
         df['Vol_Eff'] = df['Range'] / (df['Volume'].rolling(window=10).mean() + 1e-9)
     else:
         df['Vol_Eff'] = 0
-        
-    df = df.dropna()
     
-    # Features for HMM
     features_cols = ['Returns', 'Volatility', 'Range', 'Momentum', 'RSI', 'Vol_Eff']
+
+    # 1.1 Asset-Specific Features
+    if ticker in ASSET_MAPPINGS and macro_data:
+        mapping = ASSET_MAPPINGS[ticker]
+        m_type = mapping['type']
+        m_key = mapping['key']
+        
+        # "Clean-Join" Pattern: Standardize and align
+        price_idx = df.index.tz_localize(None) if df.index.tz else df.index
+        df.index = price_idx
+        
+        if m_type == 'commodity':
+            com_ticker = COMMODITY_TICKERS.get(m_key)
+            if com_ticker in macro_data:
+                com_df = macro_data[com_ticker].copy()
+                com_df.index = com_df.index.tz_localize(None) if com_df.index.tz else com_df.index
+                
+                # Align and map daily/sparse data to high-freq index
+                com_df_aligned = com_df.reindex(price_idx, method='ffill').bfill()
+                
+                # Rolling correlation with commodity returns
+                com_ret = np.log(com_df_aligned['Close'] / com_df_aligned['Close'].shift(1))
+                df['Spec_Feat'] = com_ret.rolling(20).corr(df['Returns'])
+                features_cols.append('Spec_Feat')
+                
+        elif m_type == 'yield':
+            yield_ticker = YIELD_TICKERS.get(m_key)
+            if yield_ticker in macro_data:
+                yield_df = macro_data[yield_ticker].copy()
+                yield_df.index = yield_df.index.tz_localize(None) if yield_df.index.tz else yield_df.index
+                
+                # Align and carry yields into FX session gaps
+                yield_df_aligned = yield_df.reindex(price_idx, method='ffill').bfill()
+                
+                # Include absolute yield level
+                df['Spec_Feat'] = yield_df_aligned['Close'] 
+                features_cols.append('Spec_Feat')
+
+    df = df.dropna()
     features = df[features_cols].values
     scaler = StandardScaler()
     features_scaled = scaler.fit_transform(features)

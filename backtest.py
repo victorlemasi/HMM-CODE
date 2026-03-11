@@ -27,7 +27,7 @@ from datetime import datetime
 warnings.filterwarnings("ignore")
 
 # Reuse existing project modules (read-only, no changes needed)
-from data_fetcher import fetch_data
+from data_fetcher import fetch_data, get_macro_data
 from hmm_analysis import detect_breakout
 from config import CURRENCY_PAIRS
 
@@ -40,7 +40,7 @@ TRANSACTION_COST = 0.0002        # 2 pips per round trip (cost per trade)
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-def run_backtest_for_pair(ticker: str, df: pd.DataFrame) -> dict:
+def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None) -> dict:
     """
     Runs a walk-forward backtest for a single currency pair.
     Returns a dict of performance metrics.
@@ -62,7 +62,7 @@ def run_backtest_for_pair(ticker: str, df: pd.DataFrame) -> dict:
         train_slice = df.iloc[t - TRAIN_WINDOW:t].copy()
 
         try:
-            is_breakout, direction, regime, _ = detect_breakout(train_slice)
+            is_breakout, direction, regime, _ = detect_breakout(train_slice, ticker=ticker, macro_data=macro_data)
         except Exception:
             continue  # Skip if HMM fails on this window
 
@@ -139,7 +139,10 @@ def main():
     # Fetch all data upfront as a batch (correct API: list of tickers)
     print("\nFetching historical data for all pairs...")
     all_data = fetch_data(CURRENCY_PAIRS, period=BACKTEST_PERIOD, interval=BACKTEST_INTERVAL)
-    print(f"Data ready for {len(all_data)} pairs.\n")
+    
+    print("\nTracing macro context (Yields/Commodities)...")
+    macro_data = get_macro_data(interval=BACKTEST_INTERVAL, period=BACKTEST_PERIOD)
+    print(f"Data ready for {len(all_data)} pairs and macro context.\n")
 
     all_results = []
     all_trade_logs = []
@@ -150,7 +153,7 @@ def main():
             continue
 
         print(f"  Backtesting {ticker}...", end=" ", flush=True)
-        result = run_backtest_for_pair(ticker, all_data[ticker])
+        result = run_backtest_for_pair(ticker, all_data[ticker], macro_data=macro_data)
         if result is None:
             print("SKIPPED (insufficient data)")
             continue

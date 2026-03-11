@@ -22,3 +22,22 @@ HMM_COMPONENTS = 4  # Expanded: Stable, Trend, Breakout, Noise
 GPR_SPIKE_THRESHOLD = 2.0  # Std deviations for a spike
 SAFE_HAVEN_TICKER = 'GC=F' # Gold Futures for Safe Haven mode
 CORE_ENERGY_TICKER = 'CL=F' # Crude Oil for context
+
+# Asset-Specific HMM Features
+COMMODITY_TICKERS = {
+    'OIL': 'CL=F',
+    'COPPER': 'HG=F',
+    'GOLD': 'GC=F'
+}
+YIELD_TICKERS = {
+    'US10Y': '^TNX'
+}
+
+ASSET_MAPPINGS = {
+    'AUDUSD=X': {'type': 'commodity', 'key': 'COPPER'},
+    'USDCAD=X': {'type': 'commodity', 'key': 'OIL'},
+    'NZDUSD=X': {'type': 'commodity', 'key': 'GOLD'},
+    'USDJPY=X': {'type': 'yield', 'key': 'US10Y'},
+    'EURUSD=X': {'type': 'yield', 'key': 'US10Y'},
+    'GBPUSD=X': {'type': 'yield', 'key': 'US10Y'}
+}

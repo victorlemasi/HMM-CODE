@@ -1,5 +1,5 @@
 import pandas as pd
-from data_fetcher import fetch_data, get_returns_matrix
+from data_fetcher import fetch_data, get_returns_matrix, get_macro_data
 from clustering import cluster_assets, plot_clusters
 from hmm_analysis import detect_breakout
 from config import CURRENCY_PAIRS, INTERVAL, PERIOD, N_CLUSTERS, GPR_SPIKE_THRESHOLD, SAFE_HAVEN_TICKER
@@ -24,6 +24,9 @@ def main():
     if not data:
         print("No data fetched. Exiting.")
         return
+        
+    print("\n--- Fetching Macro Context (Yields/Commodities) ---")
+    macro_data = get_macro_data(INTERVAL, PERIOD)
     
     # 2. Clustering Analysis (Optimized via Silhouette)
     print("\n--- Running Clustering Analysis ---")
@@ -39,7 +42,7 @@ def main():
     
     for pair, df in data.items():
         try:
-            is_breakout, direction, regime, _ = detect_breakout(df)
+            is_breakout, direction, regime, _ = detect_breakout(df, ticker=pair, macro_data=macro_data)
             regime_results[pair] = regime
             breakout_directions[pair] = direction
         except Exception as e:

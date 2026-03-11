@@ -9,11 +9,18 @@ def fetch_data(tickers: List[str], interval: str, period: str) -> Dict[str, pd.D
     Returns a dictionary of DataFrames.
     """
     data = {}
+    if not tickers:
+        return data
+        
+    # Ensure tickers is a list (handle single ticker case)
+    if isinstance(tickers, str):
+        tickers = [tickers]
+
     for pair in tickers:
         print(f"Fetching data for {pair}...", end=" ")
         df = yf.download(pair, interval=interval, period=period, progress=False)
-        if not df.empty:
-            # Handle potential MultiIndex columns
+        if hasattr(df, 'empty') and not df.empty:
+            # Handle potential MultiIndex columns or multi-level downloads
             if isinstance(df.columns, pd.MultiIndex):
                 df.columns = df.columns.get_level_values(0)
             
@@ -26,6 +33,16 @@ def fetch_data(tickers: List[str], interval: str, period: str) -> Dict[str, pd.D
         else:
             print("Failed (Empty DataFrame)")
     return data
+
+def get_macro_data(interval: str, period: str) -> Dict[str, pd.DataFrame]:
+    """
+    Fetches global macro tickers (Yields, Commodities) defined in config.
+    """
+    from config import COMMODITY_TICKERS, YIELD_TICKERS
+    macro_tickers = list(COMMODITY_TICKERS.values()) + list(YIELD_TICKERS.values())
+    # Remove duplicates
+    macro_tickers = list(set(macro_tickers))
+    return fetch_data(macro_tickers, interval=interval, period=period)
 
 def get_returns_matrix(data: Dict[str, pd.DataFrame]) -> pd.DataFrame:
     """
