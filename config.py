@@ -16,8 +16,8 @@ PERIOD = '60d'   # 60 days lookback
 N_CLUSTERS = 4
 
 # HMM settings
-HMM_COMPONENTS = 4  # Expanded: Stable, Trend, Breakout, Noise
-MIN_MEAN_DIFF = 0.001 # Minimal separation between state means for Returns
+HMM_COMPONENTS = 3  # Consolidation, Mean Reversion, Trend Breakout
+ATR_THRESHOLD_MULTIPLIER = 0.5 # Scale the ATR for thresholding
 
 # GPR Integration Settings
 GPR_SPIKE_THRESHOLD = 2.0  # Std deviations for a spike

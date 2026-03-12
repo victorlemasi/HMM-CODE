@@ -67,10 +67,10 @@ def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None
             continue  # Skip if HMM fails on this window
 
         # Determine desired position
-        if regime in ('Breakout', 'Trend'):
+        if regime in ('Trend Breakout', 'Mean Reversion'):
             desired = 1 if direction == 'LONG' else -1
         else:
-            desired = 0  # Flat in Consolidation / Stable
+            desired = 0  # Flat in Consolidation
 
         # Trade execution: close current and open new if position changed
         if desired != position:

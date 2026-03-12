@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from hmmlearn.hmm import GaussianHMM
 from sklearn.preprocessing import StandardScaler
-from config import HMM_COMPONENTS, ASSET_MAPPINGS, COMMODITY_TICKERS, YIELD_TICKERS, MIN_MEAN_DIFF
+from config import HMM_COMPONENTS, ASSET_MAPPINGS, COMMODITY_TICKERS, YIELD_TICKERS, ATR_THRESHOLD_MULTIPLIER
 
 def calculate_rsi(series, period=14):
     delta = series.diff()
@@ -10,6 +10,14 @@ def calculate_rsi(series, period=14):
     loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
     rs = gain / loss
     return 100 - (100 / (1 + rs))
+
+def calculate_atr(df, period=14):
+    high_low = df['High'] - df['Low']
+    high_close = np.abs(df['High'] - df['Close'].shift())
+    low_close = np.abs(df['Low'] - df['Close'].shift())
+    ranges = pd.concat([high_low, high_close, low_close], axis=1)
+    true_range = np.max(ranges, axis=1)
+    return true_range.rolling(window=period).mean()
 
 def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = None):
     """
@@ -25,6 +33,8 @@ def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = Non
     df['Volatility'] = df['Returns'].rolling(window=10).std()
     df['Momentum'] = df['Returns'].rolling(window=5).mean() - df['Returns'].rolling(window=20).mean()
     df['RSI'] = calculate_rsi(df['Close'])
+    df['ATR'] = calculate_atr(df)
+    df['ATR_Norm'] = df['ATR'] / df['Close']
     
     # Volume/Volatility Ratio (Efficiency)
     if 'Volume' in df.columns:
@@ -76,28 +86,15 @@ def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = Non
     scaler = StandardScaler()
     features_scaled = scaler.fit_transform(features)
     
-    # 2. Dynamic State Selection (BIC)
-    best_bic = np.inf
-    best_model = None
+    # 2. 3-State Model (User Request)
     best_n = 3
-    
-    for n in range(3, 6): # Try 3, 4, 5 states
-        try:
-            # Switch to 'diag' covariance for better convergence on multi-feature data
-            model = GaussianHMM(n_components=n, covariance_type="diag", n_iter=1000, tol=1e-2, random_state=42)
-            model.fit(features_scaled)
-            bic = model.bic(features_scaled)
-            if bic < best_bic:
-                best_bic = bic
-                best_model = model
-                best_n = n
-        except Exception as e:
-            continue
-            
-    if best_model is None:
-        raise ValueError("Could not fit HMM model")
+    try:
+        # Use fixed 3 states as requested
+        model = GaussianHMM(n_components=best_n, covariance_type="diag", n_iter=1000, tol=1e-2, random_state=42)
+        model.fit(features_scaled)
+    except Exception as e:
+        raise ValueError(f"Could not fit HMM model: {e}")
 
-    model = best_model
     states = model.predict(features_scaled)
     
     # 3. Regime Mapping (Labeling)
@@ -127,34 +124,35 @@ def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = Non
     sorted_states = sorted(state_metrics, key=lambda x: x['vol'] + x['range'])
     
     # Map IDs to Labels
-    # Lowest vol = Consolidation, Highest = Breakout, others = Normal/Trend
+    # Lowest activity = Consolidation
+    # Mid activity = Mean Reversion
+    # Highest activity = Trend Breakout
     labels = {}
     labels[sorted_states[0]['id']] = "Consolidation"
-    labels[sorted_states[-1]['id']] = "Breakout"
-    for i in range(1, best_n - 1):
-        state_id = sorted_states[i]['id']
-        state_ret = [s['ret'] for s in state_metrics if s['id'] == state_id][0]
-        labels[state_id] = "Trend" if abs(state_ret) > 0.0001 else "Stable"
+    labels[sorted_states[1]['id']] = "Mean Reversion"
+    labels[sorted_states[2]['id']] = "Trend Breakout"
 
     current_state_id = states[-1]
     regime = labels[current_state_id]
-    is_breakout = (regime == "Breakout")
-    
-    # 4. Statistical Separation Guard (User Request)
     # If the states are too close in 'Return' space, it's noise, not a regime
     if hasattr(model, "means_") and len(model.means_) >= 2:
-        # returns_means = model.means_[:, 0]  # First feature is Returns
-        # We check the difference between the 'Consolidation' and 'Breakout' means
+        # We check the difference between 'Consolidation' and 'Trend Breakout' means
         mu_cons = [s['ret'] for s in state_metrics if labels[s['id']] == "Consolidation"][0]
-        mu_break = [s['ret'] for s in state_metrics if labels[s['id']] == "Breakout"][0]
+        mu_break = [s['ret'] for s in state_metrics if labels[s['id']] == "Trend Breakout"][0]
+        
+        # Dynamic Threshold based on ATR
+        current_atr_norm = df['ATR_Norm'].iloc[-1]
+        mu_diff_threshold = current_atr_norm * ATR_THRESHOLD_MULTIPLIER
         
         mu_diff = abs(mu_break - mu_cons)
-        if mu_diff < MIN_MEAN_DIFF:
+        if mu_diff < mu_diff_threshold:
             # Force regime to Consolidation if the "Breakout" isn't distinct enough
             regime = "Consolidation"
             is_breakout = False
+
+    is_breakout = (regime == "Trend Breakout")
     direction = "None"
-    if is_breakout or regime == "Trend":
+    if is_breakout or regime == "Mean Reversion":
         avg_ret = [s['ret'] for s in state_metrics if s['id'] == current_state_id][0]
         direction = "LONG" if avg_ret > 0 else "SHORT"
     
