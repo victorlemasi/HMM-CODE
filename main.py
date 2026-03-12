@@ -45,6 +45,8 @@ def main():
             is_breakout, direction, regime, _ = detect_breakout(df, ticker=pair, macro_data=macro_data)
             regime_results[pair] = regime
             breakout_directions[pair] = direction
+            # Diagnostic: show how far each pair is from transitioning regimes
+            print(f"  {pair:<12} | Regime: {regime:<15} | Dir: {direction}")
         except Exception as e:
             print(f"Error analyzing {pair}: {e}")
             regime_results[pair] = "Error"
@@ -68,27 +70,27 @@ def main():
     if "Caution" in sent_recom:
         print(f"ALERT: Sentiment {sent_class} suggests cautious positioning.")
 
-    # Diversification & Hedging
-    diversified = diversify_signals(summary[summary['Regime'] == 'Breakout'])
+    # Diversification & Hedging — use updated regime names
+    diversified = diversify_signals(summary[summary['Regime'] == 'Trend Breakout'])
     exits = get_exit_recommendations(summary)
-    hedges = find_correlation_hedges(summary[summary['Regime'] == 'Breakout'])
+    hedges = find_correlation_hedges(summary[summary['Regime'] == 'Trend Breakout'])
     
     print("\n--- Raw Analysis (All Pairs) ---", flush=True)
     print(summary[['Cluster', 'Regime', 'Direction', 'State']].sort_values(by=['Cluster', 'Regime']), flush=True)
     
-    print("\n--- Breakout Assets (High Volatility) ---")
-    breakouts = summary[summary['Regime'] == 'Breakout']
+    print("\n--- Trend Breakout Assets (High Volatility — Big Moves) ---")
+    breakouts = summary[summary['Regime'] == 'Trend Breakout']
     if not breakouts.empty:
         for idx, row in breakouts.iterrows():
-            print(f"Asset: {idx} | Direction: {row['Direction']} [Cluster {row['Cluster']}]")
+            print(f"  *** BREAKOUT *** Asset: {idx} | Direction: {row['Direction']} [Cluster {row['Cluster']}]")
     else:
         print("None detected.")
 
-    print("\n--- Trend Assets (Sustained Momentum) ---")
-    trends = summary[summary['Regime'] == 'Trend']
+    print("\n--- Mean Reversion Assets (High Volatility — Scalps) ---")
+    trends = summary[summary['Regime'] == 'Mean Reversion']
     if not trends.empty:
         for idx, row in trends.iterrows():
-            print(f"Asset: {idx} | Direction: {row['Direction']} [Cluster {row['Cluster']}]")
+            print(f"  *** SCALP *** Asset: {idx} | Direction: {row['Direction']} [Cluster {row['Cluster']}]")
     else:
         print("None detected.")
 
@@ -102,7 +104,7 @@ def main():
     if not diversified.empty:
         print(diversified[['Cluster', 'Direction']])
     else:
-        print("No breakout signals for new entry.")
+        print("No breakout signals for new entry..")
         
     print("\n--- Market Neutral Correlation Hedges ---")
     if hedges:
