@@ -17,7 +17,7 @@ N_CLUSTERS = 4
 
 # HMM settings
 HMM_COMPONENTS = 3  # Consolidation, Mean Reversion, Trend Breakout
-ATR_THRESHOLD_MULTIPLIER = 0.5 # Scale the ATR for thresholding
+ATR_THRESHOLD_MULTIPLIER = 0.3 # Scale the ATR for thresholding (lowered for less strict guard)
 
 # GPR Integration Settings
 GPR_SPIKE_THRESHOLD = 2.0  # Std deviations for a spike

@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from hmmlearn.hmm import GaussianHMM
 from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import KMeans
 from config import HMM_COMPONENTS, ASSET_MAPPINGS, COMMODITY_TICKERS, YIELD_TICKERS, ATR_THRESHOLD_MULTIPLIER
 
 def calculate_rsi(series, period=14):
@@ -86,77 +87,77 @@ def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = Non
     scaler = StandardScaler()
     features_scaled = scaler.fit_transform(features)
     
-    # 2. 3-State Model (User Request)
+    # 2. 3-State HMM (fit normally; KMeans used for state LABELING below)
     best_n = 3
     try:
-        # Use fixed 3 states as requested
-        model = GaussianHMM(n_components=best_n, covariance_type="diag", n_iter=1000, tol=1e-2, random_state=42)
+        model = GaussianHMM(
+            n_components=best_n, covariance_type="diag",
+            n_iter=1000, tol=1e-2, random_state=42
+        )
         model.fit(features_scaled)
     except Exception as e:
         raise ValueError(f"Could not fit HMM model: {e}")
 
     states = model.predict(features_scaled)
-    
-    # 3. Regime Mapping (Labeling)
-    # Define "Breakout" as state with highest (Volatility + Range)
-    state_metrics = []
-    # Count occurrences of each state to avoid empty slices
-    unique_states, counts = np.unique(states, return_counts=True)
-    state_counts = dict(zip(unique_states, counts))
-
-    for i in range(best_n):
-        # Robustly handle states that might not have any predictions (unlikely but possible after fit)
-        if i in state_counts and state_counts[i] > 0:
-            mask = (states == i)
-            metrics = {
-                'id': i,
-                'vol': features[mask, 1].mean(),
-                'range': features[mask, 2].mean(),
-                'ret': df['Returns'].values[mask].mean()
-            }
-        else:
-            # Fallback for empty states to avoid runtime warnings
-            metrics = {'id': i, 'vol': 0, 'range': 0, 'ret': 0}
-            
-        state_metrics.append(metrics)
-    
-    # Sort states by high-activity (Vol + Range)
-    sorted_states = sorted(state_metrics, key=lambda x: x['vol'] + x['range'])
-    
-    # Map IDs to Labels
-    # Lowest activity = Consolidation
-    # Mid activity = Mean Reversion
-    # Highest activity = Trend Breakout
-    labels = {}
-    labels[sorted_states[0]['id']] = "Consolidation"
-    labels[sorted_states[1]['id']] = "Mean Reversion"
-    labels[sorted_states[2]['id']] = "Trend Breakout"
-
+    # Convert to plain Python ints throughout to avoid numpy hashability issues
+    states = [int(s) for s in states]
     current_state_id = states[-1]
+
+    # 3. Regime Labeling via KMeans "Hard Boundary" approach
+    # Run KMeans on the full feature space to find 3 decisive cluster centers
+    km = KMeans(n_clusters=best_n, random_state=42, n_init=10)
+    km.fit(features_scaled)
+    # Assign each HMM state to the nearest KMeans cluster center
+    # by matching HMM means_ to KMeans centers
+    from sklearn.metrics import pairwise_distances
+    dist_matrix = pairwise_distances(model.means_, km.cluster_centers_)
+    hmm_to_km = np.argmin(dist_matrix, axis=1)   # which KMeans cluster each HMM state maps to
+
+    # Rank KMeans clusters by total variance in feature space → activity level
+    km_variances = np.zeros(best_n)
+    km_labels = km.predict(features_scaled)
+    for k in range(best_n):
+        mask = (km_labels == k)
+        if mask.sum() > 0:
+            km_variances[k] = features_scaled[mask].var(axis=0).sum()
+
+    # Sort KMeans clusters: low variance = Consolidation, high = Trend Breakout
+    km_sorted = np.argsort(km_variances)   # [lowest_var_cluster, mid, highest]
+    km_rank = {int(km_sorted[0]): "Consolidation",
+               int(km_sorted[1]): "Mean Reversion",
+               int(km_sorted[2]): "Trend Breakout"}
+
+    # Build final label map: HMM state → regime string (via KMeans cluster)
+    labels = {int(i): km_rank[int(hmm_to_km[i])] for i in range(best_n)}
+
+    # Build per-state return metrics for direction
+    state_metrics = {}
+    states_arr = np.array(states)
+    for i in range(best_n):
+        mask = (states_arr == i)
+        state_metrics[i] = {
+            'ret': float(df['Returns'].values[mask].mean()) if mask.sum() > 0 else 0.0
+        }
+
     regime = labels[current_state_id]
-    # If the states are too close in 'Return' space, it's noise, not a regime
-    if hasattr(model, "means_") and len(model.means_) >= 2:
-        # We check the difference between 'Consolidation' and 'Trend Breakout' means
-        mu_cons = [s['ret'] for s in state_metrics if labels[s['id']] == "Consolidation"][0]
-        mu_break = [s['ret'] for s in state_metrics if labels[s['id']] == "Trend Breakout"][0]
-        
-        # Dynamic Threshold based on ATR
-        current_atr_norm = df['ATR_Norm'].iloc[-1]
+
+    # 4. Statistical Separation Guard — dynamic ATR-based
+    # Only reject a Trend Breakout if its return separation from Consolidation is too small
+    if regime == "Trend Breakout":
+        cons_id = [k for k, v in labels.items() if v == "Consolidation"][0]
+        break_id = current_state_id
+        mu_cons = state_metrics[cons_id]['ret']
+        mu_break = state_metrics[break_id]['ret']
+        current_atr_norm = float(df['ATR_Norm'].iloc[-1])
         mu_diff_threshold = current_atr_norm * ATR_THRESHOLD_MULTIPLIER
-        
-        mu_diff = abs(mu_break - mu_cons)
-        if mu_diff < mu_diff_threshold:
-            # Force regime to Consolidation if the "Breakout" isn't distinct enough
+        if abs(mu_break - mu_cons) < mu_diff_threshold:
             regime = "Consolidation"
-            is_breakout = False
 
     is_breakout = (regime == "Trend Breakout")
     direction = "None"
     if is_breakout or regime == "Mean Reversion":
-        avg_ret = [s['ret'] for s in state_metrics if s['id'] == current_state_id][0]
+        avg_ret = state_metrics[current_state_id]['ret']
         direction = "LONG" if avg_ret > 0 else "SHORT"
-    
-    hist_states = pd.Series(states, index=df.index)
     
     return is_breakout, direction, regime, current_state_id
 
