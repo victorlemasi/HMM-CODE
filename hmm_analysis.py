@@ -138,6 +138,7 @@ def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = Non
 
     current_state_id = states[-1]
     regime = labels[current_state_id]
+    is_breakout = (regime == "Breakout")
     
     # 4. Statistical Separation Guard (User Request)
     # If the states are too close in 'Return' space, it's noise, not a regime
