@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from hmmlearn.hmm import GaussianHMM
 from sklearn.preprocessing import StandardScaler
-from config import HMM_COMPONENTS, ASSET_MAPPINGS, COMMODITY_TICKERS, YIELD_TICKERS
+from config import HMM_COMPONENTS, ASSET_MAPPINGS, COMMODITY_TICKERS, YIELD_TICKERS, MIN_MEAN_DIFF
 
 def calculate_rsi(series, period=14):
     delta = series.diff()
@@ -139,7 +139,19 @@ def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = Non
     current_state_id = states[-1]
     regime = labels[current_state_id]
     
-    is_breakout = (regime == "Breakout")
+    # 4. Statistical Separation Guard (User Request)
+    # If the states are too close in 'Return' space, it's noise, not a regime
+    if hasattr(model, "means_") and len(model.means_) >= 2:
+        # returns_means = model.means_[:, 0]  # First feature is Returns
+        # We check the difference between the 'Consolidation' and 'Breakout' means
+        mu_cons = [s['ret'] for s in state_metrics if labels[s['id']] == "Consolidation"][0]
+        mu_break = [s['ret'] for s in state_metrics if labels[s['id']] == "Breakout"][0]
+        
+        mu_diff = abs(mu_break - mu_cons)
+        if mu_diff < MIN_MEAN_DIFF:
+            # Force regime to Consolidation if the "Breakout" isn't distinct enough
+            regime = "Consolidation"
+            is_breakout = False
     direction = "None"
     if is_breakout or regime == "Trend":
         avg_ret = [s['ret'] for s in state_metrics if s['id'] == current_state_id][0]

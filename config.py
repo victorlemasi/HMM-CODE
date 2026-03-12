@@ -17,6 +17,7 @@ N_CLUSTERS = 4
 
 # HMM settings
 HMM_COMPONENTS = 4  # Expanded: Stable, Trend, Breakout, Noise
+MIN_MEAN_DIFF = 0.001 # Minimal separation between state means for Returns
 
 # GPR Integration Settings
 GPR_SPIKE_THRESHOLD = 2.0  # Std deviations for a spike
