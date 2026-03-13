@@ -17,7 +17,6 @@ def fetch_data(tickers: List[str], interval: str, period: str) -> Dict[str, pd.D
         tickers = [tickers]
 
     import logging
-    yf.set_tz_cache_location('yfinance_cache') # Keep this just in case
     logger = logging.getLogger('yfinance')
     logger.disabled = True
 
