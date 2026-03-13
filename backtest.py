@@ -28,7 +28,7 @@ warnings.filterwarnings("ignore")
 
 # Reuse existing project modules (read-only, no changes needed)
 from data_fetcher import fetch_data, get_macro_data
-from hmm_analysis import detect_breakout
+from hmm_analysis import detect_breakout, get_dynamic_exit_levels, calculate_atr
 from config import CURRENCY_PAIRS
 
 # ─── Configuration ─────────────────────────────────────────────────────────────
@@ -48,8 +48,9 @@ def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None
     if df is None or len(df) < TRAIN_WINDOW + STEP_SIZE:
         return None
 
-    # Pre-compute log returns for the full series
+    # Pre-compute log returns and ATR for the full series
     df['Returns'] = np.log(df['Close'] / df['Close'].shift(1))
+    df['ATR'] = calculate_atr(df)
     df = df.dropna()
 
     total_bars = len(df)
@@ -57,44 +58,64 @@ def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None
     position = 0          # 1 = long, -1 = short, 0 = flat
     entry_price = None
 
-    # Walk-forward loop: train on [t - TRAIN_WINDOW : t], trade bar t
+    # Walk-forward loop
     for t in range(TRAIN_WINDOW, total_bars, STEP_SIZE):
         train_slice = df.iloc[t - TRAIN_WINDOW:t].copy()
 
         try:
             is_breakout, direction, regime, _ = detect_breakout(train_slice, ticker=ticker, macro_data=macro_data)
         except Exception:
-            continue  # Skip if HMM fails on this window
+            continue
 
-        # Determine desired position
+        desired = 0
         if regime in ('Trend Breakout', 'Mean Reversion'):
             desired = 1 if direction == 'LONG' else -1
-        else:
-            desired = 0  # Flat in Consolidation
 
-        # Trade execution: close current and open new if position changed
-        if desired != position:
-            # Close existing position
-            if position != 0 and entry_price is not None:
-                exit_price = df['Close'].iloc[t]
-                raw_ret = position * (exit_price / entry_price - 1)
-                net_ret = raw_ret - TRANSACTION_COST
-                trades.append({
-                    'Ticker': ticker,
-                    'Entry_Bar': t - STEP_SIZE,
-                    'Exit_Bar': t,
-                    'Position': 'LONG' if position == 1 else 'SHORT',
-                    'Entry_Price': entry_price,
-                    'Exit_Price': exit_price,
-                    'Regime': regime,
-                    'Net_Return': net_ret,
-                })
-                entry_price = None
+        # Calculate levels for the NEW desired position
+        current_price = df['Close'].iloc[t]
+        current_atr = train_slice['ATR'].iloc[-1]
+        tp_level, sl_level = get_dynamic_exit_levels(regime, current_price, current_atr, direction)
 
-            # Open new position
-            if desired != 0:
-                entry_price = df['Close'].iloc[t]
-            position = desired
+        # ── Intra-step Simulation ──────────────────────────────────────────
+        # Check each bar until the next re-training step for TP/SL hits
+        for sub_t in range(t, min(t + STEP_SIZE, total_bars)):
+            high = df['High'].iloc[sub_t]
+            low = df['Low'].iloc[sub_t]
+            close = df['Close'].iloc[sub_t]
+
+            # If we had a position, check for exit
+            if position != 0:
+                hit_tp = (position == 1 and high >= entry_tp) or (position == -1 and low <= entry_tp)
+                hit_sl = (position == 1 and low <= entry_sl) or (position == -1 and high >= entry_sl)
+
+                if hit_tp or hit_sl:
+                    exit_price = entry_tp if hit_tp else entry_sl
+                    raw_ret = position * (exit_price / entry_price - 1)
+                    net_ret = raw_ret - TRANSACTION_COST
+                    trades.append({
+                        'Ticker': ticker,
+                        'Entry_Bar': entry_bar_idx,
+                        'Exit_Bar': sub_t,
+                        'Position': 'LONG' if position == 1 else 'SHORT',
+                        'Entry_Price': entry_price,
+                        'Exit_Price': exit_price,
+                        'Regime': entry_regime,
+                        'Net_Return': net_ret,
+                        'Exit_Reason': 'TP' if hit_tp else 'SL'
+                    })
+                    position = 0
+                    entry_price = None
+
+            # If flat, check if we should enter Based on the HMM signal from start of step
+            if position == 0 and desired != 0:
+                position = desired
+                entry_price = df['Close'].iloc[sub_t]
+                entry_tp = tp_level
+                entry_sl = sl_level
+                entry_regime = regime
+                entry_bar_idx = sub_t
+                # Once entered, we don't re-enter in the same sub-loop until next main step
+                desired = 0 
 
     if not trades:
         return {'ticker': ticker, 'trades': 0, 'total_return': 0,

@@ -178,5 +178,31 @@ def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = Non
     
     return is_breakout, direction, regime, current_state_id
 
+def get_dynamic_exit_levels(regime, price, atr, direction):
+    """
+    State-based Exit Strategy (ATR-keyed):
+    - Mean Reversion: Aim for 1.0x ATR profit with 1.5x ATR stop buffer.
+    - Trend Breakout: Aim for 3.0x ATR 'Big Move' with tight 1.0x ATR stop.
+    """
+    if regime == "Mean Reversion":
+        tp_dist = atr * 1.0
+        sl_dist = atr * 1.5
+    elif regime == "Trend Breakout":
+        tp_dist = atr * 3.0
+        sl_dist = atr * 1.0
+    else:
+        return None, None
+
+    if direction == "LONG":
+        tp = price + tp_dist
+        sl = price - sl_dist
+    elif direction == "SHORT":
+        tp = price - tp_dist
+        sl = price + sl_dist
+    else:
+        return None, None
+        
+    return float(tp), float(sl)
+
 if __name__ == "__main__":
     pass
