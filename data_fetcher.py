@@ -26,7 +26,10 @@ def fetch_data(tickers: List[str], interval: str, period: str) -> Dict[str, pd.D
         
         # Suppress yfinance error printing
         try:
-            df = yf.download(pair, interval=interval, period=period, progress=False, show_errors=False)
+            import os, contextlib
+            with open(os.devnull, 'w') as devnull:
+                with contextlib.redirect_stderr(devnull):
+                    df = yf.download(pair, interval=interval, period=period, progress=False)
         except Exception:
             df = pd.DataFrame()
         if hasattr(df, 'empty') and not df.empty:
