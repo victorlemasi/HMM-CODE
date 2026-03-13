@@ -3,7 +3,7 @@ import pandas as pd
 from hmmlearn.hmm import GaussianHMM
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
-from config import HMM_COMPONENTS, ASSET_MAPPINGS, COMMODITY_TICKERS, YIELD_TICKERS, ATR_THRESHOLD_MULTIPLIER
+from config import HMM_COMPONENTS, ASSET_MAPPINGS, COMMODITY_TICKERS, YIELD_TICKERS, ATR_MULTIPLIER_FX, ATR_MULTIPLIER_GOLD
 
 def calculate_rsi(series, period=14):
     delta = series.diff()
@@ -20,7 +20,7 @@ def calculate_atr(df, period=14):
     true_range = np.max(ranges, axis=1)
     return true_range.rolling(window=period).mean()
 
-def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = None):
+def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = None, model=None):
     """
     Fits an HMM to detect price regimes using BIC for optimal state selection.
     Features: Returns, Volatility, Range, Momentum, RSI, Vol/Vol Ratio.
@@ -83,20 +83,31 @@ def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = Non
                 features_cols.append('Spec_Feat')
 
     df = df.dropna()
+    
+    # 1.2 "Goldilocks" Window: Use 1,000 - 1,200 bars to avoid overfitting
+    # 70 days of 1h data is ~1680 bars, we trim to most recent 1200 for fitting
+    max_fit_bars = 1200
+    if len(df) > max_fit_bars:
+        df = df.iloc[-max_fit_bars:]
+        
     features = df[features_cols].values
     scaler = StandardScaler()
     features_scaled = scaler.fit_transform(features)
     
-    # 2. 3-State HMM (fit normally; KMeans used for state LABELING below)
+    # 2. 3-State HMM (Daily Retraining logic: fit if model not provided)
     best_n = 3
-    try:
-        model = GaussianHMM(
-            n_components=best_n, covariance_type="diag",
-            n_iter=1000, tol=1e-2, random_state=42
-        )
-        model.fit(features_scaled)
-    except Exception as e:
-        raise ValueError(f"Could not fit HMM model: {e}")
+    if model is None:
+        try:
+            model = GaussianHMM(
+                n_components=best_n, covariance_type="diag",
+                n_iter=1000, tol=1e-2, random_state=42
+            )
+            model.fit(features_scaled)
+        except Exception as e:
+            raise ValueError(f"Could not fit HMM model: {e}")
+    else:
+        # If model provided (e.g. from a cache), we just use it
+        pass
 
     states = model.predict(features_scaled)
     # Convert to plain Python ints throughout to avoid numpy hashability issues
@@ -149,7 +160,13 @@ def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = Non
         mu_cons = state_metrics[cons_id]['ret']
         mu_break = state_metrics[break_id]['ret']
         current_atr_norm = float(df['ATR_Norm'].iloc[-1])
-        mu_diff_threshold = current_atr_norm * ATR_THRESHOLD_MULTIPLIER
+        
+        # Determine multiplier (K) based on asset type
+        # In this bot, tickers like 'GC=F' or 'CL=F' are commodities, others are FX
+        is_commodity = ticker in ['GC=F', 'CL=F'] or ('=F' in str(ticker))
+        k = ATR_MULTIPLIER_GOLD if is_commodity else ATR_MULTIPLIER_FX
+        
+        mu_diff_threshold = current_atr_norm * k
         if abs(mu_break - mu_cons) < mu_diff_threshold:
             regime = "Consolidation"
 

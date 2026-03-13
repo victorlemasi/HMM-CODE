@@ -9,15 +9,17 @@ CURRENCY_PAIRS = [
 ]
 
 # Timeframe for analysis
+# Timeframe for analysis
 INTERVAL = '1h'  # Hourly data
-PERIOD = '60d'   # 60 days lookback
+PERIOD = '70d'   # 70 days lookback to ensure ~1000-1200 bars
 
 # Clustering settings
 N_CLUSTERS = 4
 
 # HMM settings
 HMM_COMPONENTS = 3  # Consolidation, Mean Reversion, Trend Breakout
-ATR_THRESHOLD_MULTIPLIER = 0.2 # Lowered to 0.2 for more responsive regime detection
+ATR_MULTIPLIER_FX = 0.15 
+ATR_MULTIPLIER_GOLD = 0.2
 
 # GPR Integration Settings
 GPR_SPIKE_THRESHOLD = 2.0  # Std deviations for a spike

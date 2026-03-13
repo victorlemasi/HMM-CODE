@@ -34,7 +34,7 @@ from config import CURRENCY_PAIRS
 # ─── Configuration ─────────────────────────────────────────────────────────────
 BACKTEST_PERIOD = "6mo"          # Historical data to fetch
 BACKTEST_INTERVAL = "1h"         # Bar interval
-TRAIN_WINDOW = 400               # Bars used to train HMM before each signal
+TRAIN_WINDOW = 1200               # Bars used to train HMM before each signal (Goldilocks zone)
 STEP_SIZE = 24                   # Re-fit HMM every N bars (24 = daily)
 TRANSACTION_COST = 0.0002        # 2 pips per round trip (cost per trade)
 # ──────────────────────────────────────────────────────────────────────────────
