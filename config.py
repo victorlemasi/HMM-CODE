@@ -44,3 +44,7 @@ ASSET_MAPPINGS = {
     'EURUSD=X': {'type': 'yield', 'key': 'US10Y'},
     'GBPUSD=X': {'type': 'yield', 'key': 'US10Y'}
 }
+
+# 1.2 Candle Logic for Majors
+MAJORS_ENTRY_FILTER = ['EURUSD=X', 'GBPUSD=X']
+CONFIRMATION_ATR_MULTIPLIER = 0.2

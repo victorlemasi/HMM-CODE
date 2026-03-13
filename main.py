@@ -1,8 +1,8 @@
 import pandas as pd
 from data_fetcher import fetch_data, get_returns_matrix, get_macro_data
 from clustering import cluster_assets, plot_clusters
-from hmm_analysis import detect_breakout, get_dynamic_exit_levels
-from config import CURRENCY_PAIRS, INTERVAL, PERIOD, N_CLUSTERS, GPR_SPIKE_THRESHOLD, SAFE_HAVEN_TICKER
+from hmm_analysis import detect_breakout, get_dynamic_exit_levels, get_trigger_price
+from config import CURRENCY_PAIRS, INTERVAL, PERIOD, N_CLUSTERS, GPR_SPIKE_THRESHOLD, SAFE_HAVEN_TICKER, MAJORS_ENTRY_FILTER
 from gpr_fetcher import fetch_latest_gpr
 
 from sentiment_fetcher import fetch_market_sentiment
@@ -50,10 +50,17 @@ def main():
             current_price = df['Close'].iloc[-1]
             tp, sl = get_dynamic_exit_levels(regime, current_price, current_atr, direction)
             
-            # Diagnostic: show how far each pair is from transitioning regimes
+            # Calculate 1.2 Candle Trigger for Majors
+            trigger = None
+            if pair in MAJORS_ENTRY_FILTER and regime == "Trend Breakout":
+                trigger = get_trigger_price(df, regime, direction, current_atr)
+            
+            # Diagnostic: show current state
             msg = f"  {pair:<12} | Regime: {regime:<15} | Dir: {direction}"
             if tp and sl:
                 msg += f" | TP: {tp:.5f} | SL: {sl:.5f}"
+            if trigger:
+                msg += f" | TRIGGER: {trigger:.5f}"
             print(msg)
         except Exception as e:
             print(f"Error analyzing {pair}: {e}")

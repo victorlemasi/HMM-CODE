@@ -205,5 +205,26 @@ def get_dynamic_exit_levels(regime, price, atr, direction):
         
     return float(tp), float(sl)
 
+def get_trigger_price(df, regime, direction, atr):
+    """
+    1.2 Candle Logic:
+    Only triggers for Breakouts. Requires 0.2 ATR penetration of previous bar.
+    """
+    if regime != "Trend Breakout" or direction == "None":
+        return None
+        
+    # Get extremes of the signal bar (last closed bar)
+    last_high = df['High'].iloc[-1]
+    last_low = df['Low'].iloc[-1]
+    
+    buffer = 0.2 * atr # CONFIRMATION_ATR_MULTIPLIER
+    
+    if direction == "LONG":
+        trigger = last_high + buffer
+    else:
+        trigger = last_low - buffer
+        
+    return float(trigger)
+
 if __name__ == "__main__":
     pass

@@ -28,8 +28,8 @@ warnings.filterwarnings("ignore")
 
 # Reuse existing project modules (read-only, no changes needed)
 from data_fetcher import fetch_data, get_macro_data
-from hmm_analysis import detect_breakout, get_dynamic_exit_levels, calculate_atr
-from config import CURRENCY_PAIRS
+from hmm_analysis import detect_breakout, get_dynamic_exit_levels, calculate_atr, get_trigger_price
+from config import CURRENCY_PAIRS, MAJORS_ENTRY_FILTER
 
 # ─── Configuration ─────────────────────────────────────────────────────────────
 BACKTEST_PERIOD = "6mo"          # Historical data to fetch
@@ -74,6 +74,11 @@ def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None
         # Calculate levels for the NEW desired position
         current_price = df['Close'].iloc[t]
         tp_level, sl_level = get_dynamic_exit_levels(regime, current_price, current_atr, direction)
+        
+        # 1.2 Candle Filter: Calculate Trigger Price for Majors
+        trigger_price = None
+        if ticker in MAJORS_ENTRY_FILTER and regime == "Trend Breakout":
+            trigger_price = get_trigger_price(df.iloc[:t], regime, direction, current_atr)
 
         # ── Intra-step Simulation ──────────────────────────────────────────
         # Check each bar until the next re-training step for TP/SL hits
@@ -107,14 +112,24 @@ def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None
 
             # If flat, check if we should enter Based on the HMM signal from start of step
             if position == 0 and desired != 0:
-                position = desired
-                entry_price = df['Close'].iloc[sub_t]
-                entry_tp = tp_level
-                entry_sl = sl_level
-                entry_regime = regime
-                entry_bar_idx = sub_t
-                # Once entered, we don't re-enter in the same sub-loop until next main step
-                desired = 0 
+                # If there's a trigger price (Majors), check if it's hit
+                can_enter = True
+                if trigger_price:
+                    if desired == 1: # LONG
+                        can_enter = (high >= trigger_price)
+                    else: # SHORT
+                        can_enter = (low <= trigger_price)
+                
+                if can_enter:
+                    position = desired
+                    # For trigger entries, entry price is the trigger level or current open
+                    entry_price = trigger_price if trigger_price else df['Close'].iloc[sub_t]
+                    entry_tp = tp_level
+                    entry_sl = sl_level
+                    entry_regime = regime
+                    entry_bar_idx = sub_t
+                    # Once entered, we don't re-enter in the same sub-loop until next main step
+                    desired = 0 
 
     if not trades:
         return {'ticker': ticker, 'trades': 0, 'total_return': 0,
