@@ -33,16 +33,22 @@ COMMODITY_TICKERS = {
     'GOLD': 'GC=F'
 }
 YIELD_TICKERS = {
-    'US10Y': '^TNX'
+    'US10Y': '^TNX',
+    'UK10Y': 'GB10YT=RR',  # Note: Yahoo data might be spotty
+    'GER10Y': 'DE10YT=RR'
 }
+
+# Macro Filter Settings
+MAJORS_MACRO_ENABLE = True
+YIELD_THRESHOLD = 0.05  # Minimum bps change to consider it a "Macro Trend"
 
 ASSET_MAPPINGS = {
     'AUDUSD=X': {'type': 'commodity', 'key': 'COPPER'},
     'USDCAD=X': {'type': 'commodity', 'key': 'OIL'},
     'NZDUSD=X': {'type': 'commodity', 'key': 'GOLD'},
     'USDJPY=X': {'type': 'yield', 'key': 'US10Y'},
-    'EURUSD=X': {'type': 'yield', 'key': 'US10Y'},
-    'GBPUSD=X': {'type': 'yield', 'key': 'US10Y'}
+    'EURUSD=X': {'type': 'macro', 'base': 'GER10Y', 'quote': 'US10Y'},
+    'GBPUSD=X': {'type': 'macro', 'base': 'UK10Y', 'quote': 'US10Y'}
 }
 
 # 1.2 Candle Logic for Majors

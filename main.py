@@ -2,11 +2,63 @@ import pandas as pd
 from data_fetcher import fetch_data, get_returns_matrix, get_macro_data
 from clustering import cluster_assets, plot_clusters
 from hmm_analysis import detect_breakout, get_dynamic_exit_levels, get_trigger_price
-from config import CURRENCY_PAIRS, INTERVAL, PERIOD, N_CLUSTERS, GPR_SPIKE_THRESHOLD, SAFE_HAVEN_TICKER, MAJORS_ENTRY_FILTER
+from config import (
+    CURRENCY_PAIRS, INTERVAL, PERIOD, N_CLUSTERS, GPR_SPIKE_THRESHOLD, 
+    SAFE_HAVEN_TICKER, MAJORS_ENTRY_FILTER, MAJORS_MACRO_ENABLE, 
+    ASSET_MAPPINGS, YIELD_TICKERS, YIELD_THRESHOLD
+)
 from gpr_fetcher import fetch_latest_gpr
 
 from sentiment_fetcher import fetch_market_sentiment
 from rebalancer import diversify_signals, find_correlation_hedges, get_exit_recommendations
+
+def get_yield_spread_momentum(ticker, macro_data):
+    """
+    Calculates the 5-bar trend of the yield spread.
+    Positive means Base Yield is rising faster than Quote Yield.
+    """
+    if ticker not in ASSET_MAPPINGS or ASSET_MAPPINGS[ticker]['type'] != 'macro':
+        return 0
+        
+    mapping = ASSET_MAPPINGS[ticker]
+    base_ticker = YIELD_TICKERS.get(mapping['base'])
+    quote_ticker = YIELD_TICKERS.get(mapping['quote'])
+    
+    if base_ticker not in macro_data or quote_ticker not in macro_data:
+        return 0
+        
+    base_df = macro_data[base_ticker]
+    quote_df = macro_data[quote_ticker]
+    
+    # Calculate spread
+    spread = base_df['Close'] - quote_df['Close']
+    
+    # 5-bar momentum
+    if len(spread) < 6:
+        return 0
+        
+    momentum = spread.iloc[-1] - spread.iloc[-5]
+    return momentum
+
+def check_macro_alignment(ticker, direction, macro_data):
+    """
+    Determines if the macro trend supports the technical breakout.
+    """
+    if not MAJORS_MACRO_ENABLE or ticker not in MAJORS_ENTRY_FILTER:
+        return "TRAP_PHASE"
+        
+    momentum = get_yield_spread_momentum(ticker, macro_data)
+    
+    # Threshold check
+    if abs(momentum) < YIELD_THRESHOLD:
+        return "TRAP_PHASE"
+        
+    if direction == "LONG" and momentum > 0:
+        return "WIN_PHASE"
+    elif direction == "SHORT" and momentum < 0:
+        return "WIN_PHASE"
+        
+    return "TRAP_PHASE"
 
 def main():
     # 0. Global Sentiment Assessment
@@ -52,11 +104,15 @@ def main():
             
             # Calculate 1.2 Candle Trigger for Majors
             trigger = None
+            macro_phase = "TRAP_PHASE"
             if pair in MAJORS_ENTRY_FILTER and regime == "Trend Breakout":
-                trigger = get_trigger_price(df, regime, direction, current_atr)
+                macro_phase = check_macro_alignment(pair, direction, macro_data)
+                trigger = get_trigger_price(df, regime, direction, current_atr, macro_phase=macro_phase)
             
             # Diagnostic: show current state
             msg = f"  {pair:<12} | Regime: {regime:<15} | Dir: {direction}"
+            if pair in MAJORS_ENTRY_FILTER and regime == "Trend Breakout":
+                msg += f" | Macro: {macro_phase}"
             if tp and sl:
                 msg += f" | TP: {tp:.5f} | SL: {sl:.5f}"
             if trigger:

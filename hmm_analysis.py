@@ -82,6 +82,26 @@ def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = Non
                 df['Spec_Feat'] = yield_df_aligned['Close'] 
                 features_cols.append('Spec_Feat')
 
+        elif m_type == 'macro':
+            base_key = mapping['base']
+            quote_key = mapping['quote']
+            base_ticker = YIELD_TICKERS.get(base_key)
+            quote_ticker = YIELD_TICKERS.get(quote_key)
+            
+            if base_ticker in macro_data and quote_ticker in macro_data:
+                base_df = macro_data[base_ticker].copy()
+                quote_df = macro_data[quote_ticker].copy()
+                
+                base_df.index = base_df.index.tz_localize(None) if base_df.index.tz else base_df.index
+                quote_df.index = quote_df.index.tz_localize(None) if quote_df.index.tz else quote_df.index
+                
+                # Align both and calc spread
+                base_aligned = base_df.reindex(price_idx, method='ffill').bfill()
+                quote_aligned = quote_df.reindex(price_idx, method='ffill').bfill()
+                
+                df['Spec_Feat'] = base_aligned['Close'] - quote_aligned['Close']
+                features_cols.append('Spec_Feat')
+
     df = df.dropna()
     
     # 1.2 "Goldilocks" Window: Use 1,000 - 1,200 bars to avoid overfitting
@@ -209,10 +229,11 @@ def get_dynamic_exit_levels(regime, price, atr, direction, ticker=None):
         
     return float(tp), float(sl)
 
-def get_trigger_price(df, regime, direction, atr):
+def get_trigger_price(df, regime, direction, atr, macro_phase="TRAP_PHASE"):
     """
     1.2 Candle Logic:
-    Only triggers for Breakouts. Requires 0.2 ATR penetration of previous bar.
+    - WIN_PHASE (Macro Aligned): Aggressive entry. Using 0.05 ATR buffer (almost immediate).
+    - TRAP_PHASE (Not Aligned): Defensive entry. Requires 0.2 ATR penetration of previous bar.
     """
     if regime != "Trend Breakout" or direction == "None":
         return None
@@ -221,7 +242,11 @@ def get_trigger_price(df, regime, direction, atr):
     last_high = df['High'].iloc[-1]
     last_low = df['Low'].iloc[-1]
     
-    buffer = 0.2 * atr # CONFIRMATION_ATR_MULTIPLIER
+    # 1.0 Candle Logic for Win Phase, 1.2 for Trap Phase
+    if macro_phase == "WIN_PHASE":
+        buffer = 0.05 * atr # Aggressive "Head Start"
+    else:
+        buffer = 0.2 * atr # Standard 1.2 logic buffer
     
     if direction == "LONG":
         trigger = last_high + buffer
