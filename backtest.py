@@ -73,7 +73,7 @@ def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None
 
         # Calculate levels for the NEW desired position
         current_price = df['Close'].iloc[t]
-        tp_level, sl_level = get_dynamic_exit_levels(regime, current_price, current_atr, direction)
+        tp_level, sl_level = get_dynamic_exit_levels(regime, current_price, current_atr, direction, ticker=ticker)
         
         # 1.2 Candle Filter: Calculate Trigger Price for Majors
         trigger_price = None

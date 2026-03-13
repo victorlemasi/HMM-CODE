@@ -48,7 +48,7 @@ def main():
             
             # Calculate Dynamic Exit Levels
             current_price = df['Close'].iloc[-1]
-            tp, sl = get_dynamic_exit_levels(regime, current_price, current_atr, direction)
+            tp, sl = get_dynamic_exit_levels(regime, current_price, current_atr, direction, ticker=pair)
             
             # Calculate 1.2 Candle Trigger for Majors
             trigger = None

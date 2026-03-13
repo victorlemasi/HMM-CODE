@@ -3,7 +3,7 @@ import pandas as pd
 from hmmlearn.hmm import GaussianHMM
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
-from config import HMM_COMPONENTS, ASSET_MAPPINGS, COMMODITY_TICKERS, YIELD_TICKERS, ATR_MULTIPLIER_FX, ATR_MULTIPLIER_GOLD
+from config import HMM_COMPONENTS, ASSET_MAPPINGS, COMMODITY_TICKERS, YIELD_TICKERS, ATR_MULTIPLIER_FX, ATR_MULTIPLIER_GOLD, MAJORS_ENTRY_FILTER
 
 def calculate_rsi(series, period=14):
     delta = series.diff()
@@ -179,7 +179,7 @@ def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = Non
     current_atr = float(df['ATR'].iloc[-1])
     return is_breakout, direction, regime, current_state_id, current_atr
 
-def get_dynamic_exit_levels(regime, price, atr, direction):
+def get_dynamic_exit_levels(regime, price, atr, direction, ticker=None):
     """
     State-based Exit Strategy (ATR-keyed):
     - Mean Reversion: Aim for 1.0x ATR profit with 1.5x ATR stop buffer.
@@ -190,7 +190,11 @@ def get_dynamic_exit_levels(regime, price, atr, direction):
         sl_dist = atr * 1.5
     elif regime == "Trend Breakout":
         tp_dist = atr * 3.0
-        sl_dist = atr * 1.0
+        # Check if this is a Major needing 1.2 Confirmation room
+        if ticker in MAJORS_ENTRY_FILTER:
+            sl_dist = atr * 1.2 # Give it room to breathe
+        else:
+            sl_dist = atr * 1.0 # Standard tight stop
     else:
         return None, None
 
