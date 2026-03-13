@@ -4,8 +4,8 @@ from clustering import cluster_assets, plot_clusters
 from hmm_analysis import detect_breakout, get_dynamic_exit_levels, get_trigger_price
 from config import (
     CURRENCY_PAIRS, INTERVAL, PERIOD, N_CLUSTERS, GPR_SPIKE_THRESHOLD, 
-    SAFE_HAVEN_TICKER, MAJORS_ENTRY_FILTER, MAJORS_MACRO_ENABLE, 
-    ASSET_MAPPINGS, YIELD_TICKERS, YIELD_THRESHOLD
+    SAFE_HAVEN_TICKER, MAJORS_FIX_LIST, MAJORS_MACRO_ENABLE, 
+    ASSET_MAPPINGS, YIELD_TICKERS, YIELD_THRESHOLD, CONFIRMATION_BUFFER, MAJORS_TP_MULTIPLIER
 )
 from gpr_fetcher import fetch_latest_gpr
 
@@ -24,7 +24,15 @@ def get_yield_spread_momentum(ticker, macro_data):
     base_ticker = YIELD_TICKERS.get(mapping['base'])
     quote_ticker = YIELD_TICKERS.get(mapping['quote'])
     
-    if base_ticker not in macro_data or quote_ticker not in macro_data:
+    if base_ticker not in macro_data or quote_ticker not in macro_data or macro_data[base_ticker].empty or macro_data[quote_ticker].empty:
+        # Fallback to DXY momentum
+        dxy_ticker = YIELD_TICKERS.get('DXY')
+        if dxy_ticker in macro_data and not macro_data[dxy_ticker].empty:
+            dxy_df = macro_data[dxy_ticker]
+            if len(dxy_df) >= 6:
+                # If DXY is rising, USD is strengthening -> Negative momentum for EURUSD/GBPUSD
+                momentum = dxy_df['Close'].iloc[-1] - dxy_df['Close'].iloc[-5]
+                return -momentum
         return 0
         
     base_df = macro_data[base_ticker]
@@ -44,7 +52,7 @@ def check_macro_alignment(ticker, direction, macro_data):
     """
     Determines if the macro trend supports the technical breakout.
     """
-    if not MAJORS_MACRO_ENABLE or ticker not in MAJORS_ENTRY_FILTER:
+    if not MAJORS_MACRO_ENABLE or ticker not in MAJORS_FIX_LIST:
         return "TRAP_PHASE"
         
     momentum = get_yield_spread_momentum(ticker, macro_data)
@@ -105,13 +113,17 @@ def main():
             # Calculate 1.2 Candle Trigger for Majors
             trigger = None
             macro_phase = "TRAP_PHASE"
-            if pair in MAJORS_ENTRY_FILTER and regime == "Trend Breakout":
+            if pair in MAJORS_FIX_LIST and regime == "Trend Breakout":
                 macro_phase = check_macro_alignment(pair, direction, macro_data)
                 trigger = get_trigger_price(df, regime, direction, current_atr, macro_phase=macro_phase)
+                # print(f" {pair} | Running OPTIMIZED Major Logic...") # Removed to keep standard formatting clean
+            elif regime == "Trend Breakout":
+                trigger = get_trigger_price(df, regime, direction, current_atr, macro_phase="WIN_PHASE")
+                # print(f" {pair} | Running STANDARD Logic (Win-streak active)") # Removed to keep standard formatting clean
             
             # Diagnostic: show current state
             msg = f"  {pair:<12} | Regime: {regime:<15} | Dir: {direction}"
-            if pair in MAJORS_ENTRY_FILTER and regime == "Trend Breakout":
+            if pair in MAJORS_FIX_LIST and regime == "Trend Breakout":
                 msg += f" | Macro: {macro_phase}"
             if tp and sl:
                 msg += f" | TP: {tp:.5f} | SL: {sl:.5f}"

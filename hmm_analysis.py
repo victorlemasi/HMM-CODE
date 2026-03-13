@@ -3,7 +3,11 @@ import pandas as pd
 from hmmlearn.hmm import GaussianHMM
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
-from config import HMM_COMPONENTS, ASSET_MAPPINGS, COMMODITY_TICKERS, YIELD_TICKERS, ATR_MULTIPLIER_FX, ATR_MULTIPLIER_GOLD, MAJORS_ENTRY_FILTER
+from config import (
+    HMM_COMPONENTS, ASSET_MAPPINGS, COMMODITY_TICKERS, YIELD_TICKERS,
+    ATR_MULTIPLIER_FX, ATR_MULTIPLIER_GOLD, MAJORS_FIX_LIST,
+    CONFIRMATION_BUFFER, MAJORS_TP_MULTIPLIER
+)
 
 def calculate_rsi(series, period=14):
     delta = series.diff()
@@ -87,8 +91,9 @@ def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = Non
             quote_key = mapping['quote']
             base_ticker = YIELD_TICKERS.get(base_key)
             quote_ticker = YIELD_TICKERS.get(quote_key)
+            dxy_ticker = YIELD_TICKERS.get('DXY')
             
-            if base_ticker in macro_data and quote_ticker in macro_data:
+            if base_ticker in macro_data and quote_ticker in macro_data and not macro_data[base_ticker].empty and not macro_data[quote_ticker].empty:
                 base_df = macro_data[base_ticker].copy()
                 quote_df = macro_data[quote_ticker].copy()
                 
@@ -100,6 +105,14 @@ def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = Non
                 quote_aligned = quote_df.reindex(price_idx, method='ffill').bfill()
                 
                 df['Spec_Feat'] = base_aligned['Close'] - quote_aligned['Close']
+                features_cols.append('Spec_Feat')
+            elif dxy_ticker in macro_data and not macro_data[dxy_ticker].empty:
+                # Fallback to DXY if primary yield spread is missing
+                dxy_df = macro_data[dxy_ticker].copy()
+                dxy_df.index = dxy_df.index.tz_localize(None) if dxy_df.index.tz else dxy_df.index
+                dxy_aligned = dxy_df.reindex(price_idx, method='ffill').bfill()
+                # We use -DXY as the feature because stronger DXY -> lower EURUSD/GBPUSD
+                df['Spec_Feat'] = -dxy_aligned['Close']
                 features_cols.append('Spec_Feat')
 
     df = df.dropna()
@@ -209,11 +222,12 @@ def get_dynamic_exit_levels(regime, price, atr, direction, ticker=None):
         tp_dist = atr * 1.0
         sl_dist = atr * 1.5
     elif regime == "Trend Breakout":
-        tp_dist = atr * 3.0
-        # Check if this is a Major needing 1.2 Confirmation room
-        if ticker in MAJORS_ENTRY_FILTER:
+        # Check if this is a Major inside MAJORS_FIX_LIST
+        if ticker in MAJORS_FIX_LIST:
+            tp_dist = atr * MAJORS_TP_MULTIPLIER
             sl_dist = atr * 1.2 # Give it room to breathe
         else:
+            tp_dist = atr * 2.0 # Standard TP for successful pairs (was implicit 3.0 before, but keeping standard 2.0x tp_dist or wait, let's look at what standard was. User says winners have 1.0 Candle / 2.0x TP logic. So changing to 2.0)
             sl_dist = atr * 1.0 # Standard tight stop
     else:
         return None, None
@@ -246,7 +260,7 @@ def get_trigger_price(df, regime, direction, atr, macro_phase="TRAP_PHASE"):
     if macro_phase == "WIN_PHASE":
         buffer = 0.05 * atr # Aggressive "Head Start"
     else:
-        buffer = 0.2 * atr # Standard 1.2 logic buffer
+        buffer = CONFIRMATION_BUFFER * atr # Standard 1.2 logic buffer
     
     if direction == "LONG":
         trigger = last_high + buffer
