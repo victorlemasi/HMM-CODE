@@ -1,5 +1,6 @@
 import yfinance as yf
 import pandas as pd
+import time
 from typing import List, Dict
 from config import CURRENCY_PAIRS, INTERVAL, PERIOD
 
@@ -21,16 +22,25 @@ def fetch_data(tickers: List[str], interval: str, period: str) -> Dict[str, pd.D
     logger.disabled = True
 
     for pair in tickers:
-        print(f"Fetching data for {pair}...", end=" ")
+        print(f"Fetching data for {pair}...", end=" ", flush=True)
+        df = pd.DataFrame()
         
-        # Suppress yfinance error printing
-        try:
-            import os, contextlib
-            with open(os.devnull, 'w') as devnull:
-                with contextlib.redirect_stderr(devnull):
-                    df = yf.download(pair, interval=interval, period=period, progress=False)
-        except Exception:
-            df = pd.DataFrame()
+        # Retry mechanism (3 attempts)
+        for attempt in range(3):
+            try:
+                import os, contextlib
+                with open(os.devnull, 'w') as devnull:
+                    with contextlib.redirect_stderr(devnull):
+                        df = yf.download(pair, interval=interval, period=period, progress=False)
+                
+                if not df.empty:
+                    break
+            except Exception:
+                pass
+            
+            if attempt < 2:
+                time.sleep(1) # Wait before retry
+        
         if hasattr(df, 'empty') and not df.empty:
             # Handle potential MultiIndex columns or multi-level downloads
             if isinstance(df.columns, pd.MultiIndex):
@@ -43,7 +53,9 @@ def fetch_data(tickers: List[str], interval: str, period: str) -> Dict[str, pd.D
             else:
                 print(f"Failed (Missing 'Close' column. Columns: {df.columns.tolist()})")
         else:
-            print("Failed (Empty DataFrame)")
+            print("Failed (Empty DataFrame after 3 attempts)")
+            
+        time.sleep(0.5) # Anti-rate-limit delay between tickers
     return data
 
 def get_macro_data(interval: str, period: str) -> Dict[str, pd.DataFrame]:
