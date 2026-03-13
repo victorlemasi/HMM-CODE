@@ -63,7 +63,7 @@ def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None
         train_slice = df.iloc[t - TRAIN_WINDOW:t].copy()
 
         try:
-            is_breakout, direction, regime, _ = detect_breakout(train_slice, ticker=ticker, macro_data=macro_data)
+            is_breakout, direction, regime, _, current_atr = detect_breakout(train_slice, ticker=ticker, macro_data=macro_data)
         except Exception:
             continue
 
@@ -73,7 +73,6 @@ def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None
 
         # Calculate levels for the NEW desired position
         current_price = df['Close'].iloc[t]
-        current_atr = train_slice['ATR'].iloc[-1]
         tp_level, sl_level = get_dynamic_exit_levels(regime, current_price, current_atr, direction)
 
         # ── Intra-step Simulation ──────────────────────────────────────────

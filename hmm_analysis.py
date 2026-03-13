@@ -176,7 +176,8 @@ def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = Non
         avg_ret = state_metrics[current_state_id]['ret']
         direction = "LONG" if avg_ret > 0 else "SHORT"
     
-    return is_breakout, direction, regime, current_state_id
+    current_atr = float(df['ATR'].iloc[-1])
+    return is_breakout, direction, regime, current_state_id, current_atr
 
 def get_dynamic_exit_levels(regime, price, atr, direction):
     """

@@ -42,13 +42,12 @@ def main():
     
     for pair, df in data.items():
         try:
-            is_breakout, direction, regime, _ = detect_breakout(df, ticker=pair, macro_data=macro_data)
+            is_breakout, direction, regime, _, current_atr = detect_breakout(df, ticker=pair, macro_data=macro_data)
             regime_results[pair] = regime
             breakout_directions[pair] = direction
             
             # Calculate Dynamic Exit Levels
             current_price = df['Close'].iloc[-1]
-            current_atr = df['ATR'].iloc[-1]
             tp, sl = get_dynamic_exit_levels(regime, current_price, current_atr, direction)
             
             # Diagnostic: show how far each pair is from transitioning regimes
