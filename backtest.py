@@ -40,6 +40,42 @@ TRANSACTION_COST = 0.0002        # 2 pips per round trip (cost per trade)
 # ──────────────────────────────────────────────────────────────────────────────
 
 
+def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
+    """
+    Historical version of the 'Bouncer' logic for backtesting.
+    Uses macro_data already fetched during backtest.
+    """
+    if ticker != "EURUSD=X" or macro_data is None:
+        return "ALLOW"
+
+    try:
+        dxy_df = macro_data.get('DX-Y.NYB')
+        oil_df = macro_data.get('CL=F')
+
+        if dxy_df is None or oil_df is None or dxy_df.empty or oil_df.empty:
+            return "ALLOW"
+
+        # Filter data up to current_time only
+        dxy_slice = dxy_df[dxy_df.index <= current_time]
+        oil_slice = oil_df[oil_df.index <= current_time]
+
+        if len(dxy_slice) < 25 or len(oil_slice) < 1:
+            return "ALLOW"
+
+        # Simulate 'daily' change by looking back 24 hourly bars
+        dxy_change = (dxy_slice['Close'].iloc[-1] - dxy_slice['Close'].iloc[-25]) / dxy_slice['Close'].iloc[-25]
+        current_oil = oil_slice['Close'].iloc[-1]
+
+        if dxy_change > 0.002 or current_oil > 95:
+            return "SHORT_ONLY"
+        elif dxy_change < -0.002 and current_oil < 80:
+            return "LONG_ONLY"
+            
+        return "ALLOW"
+    except Exception:
+        return "ALLOW"
+
+
 def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None) -> dict:
     """
     Runs a walk-forward backtest for a single currency pair.
@@ -69,7 +105,17 @@ def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None
 
         desired = 0
         if regime in ('Trend Breakout', 'Mean Reversion'):
-            desired = 1 if direction == 'LONG' else -1
+            direction_hmm = 'LONG' if direction == 'LONG' else 'SHORT'
+            
+            # --- APPLY THE FUNDAMENTAL BOUNCER (Backtest Version) ---
+            macro_bias = check_fundamental_gatekeeper(ticker, df.index[t], macro_data)
+            
+            if macro_bias == "SHORT_ONLY" and direction_hmm == "LONG":
+                desired = 0 # Signal Rejected
+            elif macro_bias == "LONG_ONLY" and direction_hmm == "SHORT":
+                desired = 0 # Signal Rejected
+            else:
+                desired = 1 if direction_hmm == 'LONG' else -1
 
         # Calculate levels for the NEW desired position
         current_price = df['Close'].iloc[t]
