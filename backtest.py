@@ -112,13 +112,22 @@ def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None
 
             # If flat, check if we should enter Based on the HMM signal from start of step
             if position == 0 and desired != 0:
-                # If there's a trigger price (Majors), check if it's hit
+                # 1.2 Candle Logic (Majors): Strict 1-bar trigger window
                 can_enter = True
                 if trigger_price:
-                    if desired == 1: # LONG
-                        can_enter = (high >= trigger_price)
-                    else: # SHORT
-                        can_enter = (low <= trigger_price)
+                    # check if hit in the FIRST sub-step
+                    if sub_t == t:
+                        if desired == 1: # LONG
+                            can_enter = (high >= trigger_price)
+                        else: # SHORT
+                            can_enter = (low <= trigger_price)
+                        
+                        if not can_enter:
+                            # Trigger NOT hit in the immediate next hour -> Cancel for this 24h step
+                            desired = 0
+                    else:
+                        # Should have been handled in sub_t == t; skip if reached here
+                        can_enter = False
                 
                 if can_enter:
                     position = desired
