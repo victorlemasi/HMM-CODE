@@ -42,46 +42,55 @@ TRANSACTION_COST = 0.0002        # 2 pips per round trip (cost per trade)
 
 def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
     """
-    Historical Hybrid Bouncer (Threshold + Momentum).
-    Uses macro_data already fetched during backtest.
+    Historical Hybrid Bouncer (Threshold + Momentum + Yields).
     """
-    if ticker != "EURUSD=X" or macro_data is None:
+    if macro_data is None:
         return "ALLOW"
 
     try:
         # Thresholds
         DXY_WALL = 100.40
         OIL_DANGER_ZONE = 98.00 
-        MOM_THRESHOLD = 0.0025 # 0.25% daily spike
+        MOM_THRESHOLD = 0.0025
 
         dxy_df = macro_data.get('DX-Y.NYB')
         oil_df = macro_data.get('BZ=F')
+        yield_df = macro_data.get('^TNX')
 
-        if dxy_df is None or oil_df is None or dxy_df.empty or oil_df.empty:
+        if dxy_df is None or dxy_df.empty:
             return "ALLOW"
 
-        # Filter and calculate 24h change (approx 24 bars)
+        # Current values
         dxy_slice = dxy_df[dxy_df.index <= current_time]
-        oil_slice = oil_df[oil_df.index <= current_time]
-
-        if len(dxy_slice) < 25:
-            return "ALLOW"
-
-        current_dxy = dxy_slice['Close'].iloc[-1]
-        current_oil = oil_slice['Close'].iloc[-1]
+        if len(dxy_slice) < 25: return "ALLOW"
         
-        # Daily change lookback (24 bars)
+        current_dxy = dxy_slice['Close'].iloc[-1]
         dxy_change = (current_dxy - dxy_slice['Close'].iloc[-25]) / dxy_slice['Close'].iloc[-25]
 
-        # 1. Hard Stop
-        if current_dxy > DXY_WALL or current_oil > OIL_DANGER_ZONE:
-            return "BEARISH_ONLY"
-            
-        # 2. Momentum Warning
+        # --- GOLD OVERRIDE ---
+        if ticker == "GC=F":
+            if yield_df is not None and not yield_df.empty:
+                yield_slice = yield_df[yield_df.index <= current_time]
+                if len(yield_slice) >= 2:
+                    yield_change = yield_slice['Close'].iloc[-1] - yield_slice['Close'].iloc[-2]
+                    if current_dxy > 100.20 or yield_change > 0:
+                        return "BEARISH_ONLY"
+
+        # --- OIL OVERRIDE ---
+        if ticker == "CL=F":
+            if current_dxy > 100.50:
+                return "SCALP_ONLY"
+
+        # --- STANDARD (EURUSD) & GENERAL ---
+        if oil_df is not None and not oil_df.empty:
+            oil_slice = oil_df[oil_df.index <= current_time]
+            current_oil = oil_slice['Close'].iloc[-1]
+            if current_dxy > DXY_WALL or current_oil > OIL_DANGER_ZONE:
+                return "BEARISH_ONLY"
+
         if dxy_change > MOM_THRESHOLD:
             return "BEARISH_ONLY"
-            
-        # 3. Pivot Level + Direction
+
         if current_dxy > 98.50 and dxy_change > 0:
             return "BEARISH_ONLY"
             
@@ -147,6 +156,21 @@ def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None
 
             # If we had a position, check for exit
             if position != 0:
+                # --- WAR-TIME OVERRIDE: 4-Hour Time Limit for OIL & GOLD ---
+                if (ticker == "CL=F" or ticker == "GC=F") and (sub_t - entry_bar_idx) >= 4:
+                    exit_reason = "TIME_EXIT"
+                    exit_price = close
+                    raw_ret = position * (exit_price / entry_price - 1)
+                    net_ret = raw_ret - TRANSACTION_COST
+                    trades.append({
+                        'Ticker': ticker, 'Entry_Bar': entry_bar_idx, 'Exit_Bar': sub_t,
+                        'Position': 'LONG' if position == 1 else 'SHORT',
+                        'Entry_Price': entry_price, 'Exit_Price': exit_price,
+                        'Regime': entry_regime, 'Net_Return': net_ret, 'Exit_Reason': exit_reason
+                    })
+                    position = 0; entry_price = None
+                    continue
+
                 hit_tp = (position == 1 and high >= entry_tp) or (position == -1 and low <= entry_tp)
                 hit_sl = (position == 1 and low <= entry_sl) or (position == -1 and high >= entry_sl)
 
@@ -188,11 +212,18 @@ def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None
                         can_enter = False
                 
                 if can_enter:
+                    # --- WAR-TIME OVERRIDE: SCALP MODE for OIL ---
+                    if ticker == "CL=F" and macro_bias == "SCALP_ONLY":
+                        # 1:1 Risk/Reward using ATR
+                        risk = current_atr * 2
+                        entry_tp = current_price + (desired * risk)
+                        entry_sl = current_price - (desired * risk)
+                    else:
+                        entry_tp = tp_level
+                        entry_sl = sl_level
+
                     position = desired
-                    # For trigger entries, entry price is the trigger level or current open
                     entry_price = trigger_price if trigger_price else df['Close'].iloc[sub_t]
-                    entry_tp = tp_level
-                    entry_sl = sl_level
                     entry_regime = regime
                     entry_bar_idx = sub_t
                     # Once entered, we don't re-enter in the same sub-loop until next main step

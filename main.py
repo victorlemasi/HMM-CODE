@@ -75,12 +75,13 @@ class FundamentalBouncer:
         self.OIL_DANGER_ZONE = 98.00
         self.MOMENTUM_THRESHOLD = 0.0025 # 0.25% daily USD spike
         
-    def get_bias(self):
+    def get_bias(self, ticker=None):
         try:
             import yfinance as yf
             # 1. Fetch Price Data
             dxy_history = yf.Ticker("DX-Y.NYB").history(period="2d")['Close']
-            oil = yf.Ticker("BZ=F").history(period="1d")['Close'].iloc[-1]
+            oil_price = yf.Ticker("BZ=F").history(period="1d")['Close'].iloc[-1]
+            yield_history = yf.Ticker("^TNX").history(period="2d")['Close']
             
             if len(dxy_history) < 2:
                 return "NEUTRAL"
@@ -88,13 +89,24 @@ class FundamentalBouncer:
             current_dxy = dxy_history.iloc[-1]
             dxy_change = (current_dxy - dxy_history.iloc[-2]) / dxy_history.iloc[-2]
             
-            # --- Logic: The Hybrid Bouncer ---
+            # --- GOLD WAR-TIME OVERRIDE ---
+            if ticker == 'GC=F':
+                yield_change = yield_history.iloc[-1] - yield_history.iloc[-2]
+                # If USD is strong and Yields are rising, Gold is a trap
+                if current_dxy > 100.20 or yield_change > 0:
+                    return "BEARISH_ONLY" # Block Longs
+            
+            # --- OIL WAR-TIME OVERRIDE ---
+            if ticker == 'CL=F':
+                if current_dxy > 100.50:
+                    return "SCALP_ONLY" # Take 1:1 risk/reward, exit fast
+            
+            # --- Logic: The Hybrid Bouncer (Standard for FX) ---
             # 1. Hard Stop (The Wall)
-            if current_dxy > self.DXY_WALL or oil > self.OIL_DANGER_ZONE:
+            if current_dxy > self.DXY_WALL or oil_price > self.OIL_DANGER_ZONE:
                 return "BEARISH_ONLY"
                 
             # 2. Velocity Warning (The Proactive Filter)
-            # If USD is spiking fast (>0.25%) or DXY is high (>98.5) and rising, stay out.
             if dxy_change > self.MOMENTUM_THRESHOLD:
                 return "BEARISH_ONLY"
             
@@ -116,9 +128,7 @@ def main():
     
     # Fundamental Bouncer (Override Switch)
     bouncer = FundamentalBouncer()
-    current_bias = bouncer.get_bias()
-    if current_bias != "NEUTRAL":
-        print(f"Fundamental Bouncer Status: {current_bias}")
+    # Bias is checked per-pair in the loop
     
     # 1. Fetch data
     print("\n=== Currency Pair Analysis Pipeline ===")
@@ -159,10 +169,19 @@ def main():
                 macro_phase = check_macro_alignment(pair, direction, macro_data)
             
             # --- APPLY THE FUNDAMENTAL BOUNCER (Override Switch) ---
+            current_bias = bouncer.get_bias(ticker=pair)
             if pair == "EURUSD=X":
                 if current_bias == "BEARISH_ONLY" and direction == "LONG":
-                    print(f"  {pair} | SIGNAL REJECTED: Oil Shock + DXY Strength is too high.")
+                    print(f"  {pair} | SIGNAL REJECTED: War-Time Macro Filter Active.")
                     direction = "None"
+            elif pair == "GC=F":
+                if current_bias == "BEARISH_ONLY" and direction == "LONG":
+                    print(f"  {pair} | WAR_SCALP_4H: Blocking Long due to Yield Pressure.")
+                    direction = "None"
+            elif pair == "CL=F":
+                if current_bias == "SCALP_ONLY" and direction == "LONG":
+                     print(f"  {pair} | WAR-TIME SCALP MODE: Tightening TP/SL.")
+                     # Scalp mode logic: TP/SL will be handled by dynamic level calc
             
             # Calculate 1.2 Candle Trigger for Majors
             trigger = None
