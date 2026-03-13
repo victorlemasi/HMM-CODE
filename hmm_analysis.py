@@ -49,7 +49,7 @@ def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = Non
     if ticker in ASSET_MAPPINGS and macro_data:
         mapping = ASSET_MAPPINGS[ticker]
         m_type = mapping['type']
-        m_key = mapping['key']
+        m_key = mapping.get('key') # Use .get() as 'macro' doesn't have a 'key'
         
         # "Clean-Join" Pattern: Standardize and align
         price_idx = df.index.tz_localize(None) if df.index.tz else df.index

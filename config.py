@@ -34,8 +34,8 @@ COMMODITY_TICKERS = {
 }
 YIELD_TICKERS = {
     'US10Y': '^TNX',
-    'UK10Y': 'GB10YT=RR',  # Note: Yahoo data might be spotty
-    'GER10Y': 'DE10YT=RR'
+    'UK10Y': '^GJGB',
+    'GER10Y': '^GDBR'
 }
 
 # Macro Filter Settings
