@@ -29,7 +29,7 @@ warnings.filterwarnings("ignore")
 # Reuse existing project modules (read-only, no changes needed)
 from data_fetcher import fetch_data, get_macro_data
 from hmm_analysis import detect_breakout, get_dynamic_exit_levels, calculate_atr, get_trigger_price
-from config import CURRENCY_PAIRS, MAJORS_ENTRY_FILTER
+from config import CURRENCY_PAIRS, MAJORS_FIX_LIST
 
 # ─── Configuration ─────────────────────────────────────────────────────────────
 BACKTEST_PERIOD = "6mo"          # Historical data to fetch
@@ -77,7 +77,7 @@ def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None
         
         # 1.2 Candle Filter: Calculate Trigger Price for Majors
         trigger_price = None
-        if ticker in MAJORS_ENTRY_FILTER and regime == "Trend Breakout":
+        if ticker in MAJORS_FIX_LIST and regime == "Trend Breakout":
             trigger_price = get_trigger_price(df.iloc[:t], regime, direction, current_atr)
 
         # ── Intra-step Simulation ──────────────────────────────────────────
