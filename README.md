@@ -10,6 +10,28 @@ A quantitative tool to scan multiple currency pairs using Clustering for asset g
 - **Dynamic ATR Thresholds**: Adaptive volatility filters that scale based on the asset type (FX vs Commodities).
 - **Geopolitical Risk (GPR) Overlay**: Integrates the Geopolitical Risk Index to adjust risk thresholds.
 - **Visualization**: Generates a correlation heatmap of the clusters.
+13: 
+14: ## Macro Intelligence (War-Time Strategy)
+15: 
+16: The scanner utilizes a "Macro-First" approach to filter technical signals based on global market conditions, specifically tuned for the volatile March 2026 environment.
+17: 
+18: ### 1. The Majors (EURUSD & GBPUSD)
+19: - **Yield Spread Momentum**: Blocks long signals if US 10-Year yields are rising faster than European/UK counterparts, anticipating USD dominance.
+20: - **DXY Velocity Switch**: A panic-mode filter that locks majors to "Bearish Only" if the US Dollar Index (DXY) spikes >0.25% in a single day.
+21: 
+22: ### 2. Gold (GC=F) — War_Scalp_4H
+23: - **Real Yield Filter**: Detects "Liquidity Traps" by blocking longs if yields (^TNX) and DXY are rising simultaneously.
+24: - **4-Hour Hard Exit**: Mandatory exit after 4 hours to capture geopolitical risk spikes while avoiding subsequent yield pressure reversals.
+25: 
+26: ### 3. Oil (CL=F) — Geopolitical Sensor
+27: - **DXY Stress Mode**: Automatically switches to "Scalp Mode" (1:1 Risk/Reward) if DXY > 100.50.
+28: - **Time-Decay Exit**: 4-hour hard exit limit to protect against "Strategic Reserve Release" flash gaps.
+29: 
+30: ### 4. Global Risk Sensors
+31: - **DXY Master Pivot**: Defensive stance triggered if DXY crosses the 100.40 psychological wall.
+32: - **Brent Oil Gauge**: Tightens stops across the portfolio if Brent Crude exceeds $98/bbl.
+33: - **Sentiment Filter**: Integrates Real-time Fear & Greed sentiment to suppress reversal signals during extreme panic.
+34: 
 
 ## Installation
 
