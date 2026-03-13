@@ -68,6 +68,40 @@ def check_macro_alignment(ticker, direction, macro_data):
         
     return "TRAP_PHASE"
 
+def get_macro_permission(pair):
+    """
+    Acts as a 'Bouncer' for EURUSD trades based on institutional fundamentals.
+    """
+    if pair != "EURUSD=X":
+        return "ALLOW" # Don't interfere with your winning Gold/CHF pairs
+
+    try:
+        import yfinance as yf
+        # 1. Fetch Proxy Fundamental Data
+        dxy = yf.Ticker("DX-Y.NYB").history(period="2d")['Close']
+        oil = yf.Ticker("CL=F").history(period="2d")['Close']
+        
+        if len(dxy) < 2 or len(oil) < 1:
+            return "ALLOW"
+            
+        dxy_change = (dxy.iloc[-1] - dxy.iloc[-2]) / dxy.iloc[-2]
+        current_oil = oil.iloc[-1]
+
+        # 2. Institutional Logic (March 2026 Context)
+        # If USD is getting stronger (DXY up) or Energy is expensive (Oil up)
+        # the Euro is fundamentally weak.
+        if dxy_change > 0.002 or current_oil > 95:
+            return "SHORT_ONLY"
+        
+        elif dxy_change < -0.002 and current_oil < 80:
+            return "LONG_ONLY"
+            
+        return "ALLOW"
+        
+    except Exception as e:
+        print(f"Macro Filter Error: {e}")
+        return "ALLOW" # Fallback to standard logic if data fails
+
 def main():
     # 0. Global Sentiment Assessment
     print("\n--- Market Sentiment & Risk Assessment ---")
@@ -104,7 +138,6 @@ def main():
         try:
             is_breakout, direction, regime, _, current_atr = detect_breakout(df, ticker=pair, macro_data=macro_data)
             regime_results[pair] = regime
-            breakout_directions[pair] = direction
             
             # Calculate Dynamic Exit Levels
             current_price = df['Close'].iloc[-1]
@@ -115,11 +148,27 @@ def main():
             macro_phase = "TRAP_PHASE"
             if pair in MAJORS_FIX_LIST and regime == "Trend Breakout":
                 macro_phase = check_macro_alignment(pair, direction, macro_data)
+            
+            # --- APPLY THE FUNDAMENTAL BOUNCER ---
+            macro_bias = get_macro_permission(pair)
+            if macro_bias == "SHORT_ONLY" and direction == "LONG":
+                print(f"  {pair} | SIGNAL REJECTED: Macro bias is Bearish.")
+                direction = "None"
+            elif macro_bias == "LONG_ONLY" and direction == "SHORT":
+                print(f"  {pair} | SIGNAL REJECTED: Macro bias is Bullish.")
+                direction = "None"
+            
+            # Calculate 1.2 Candle Trigger for Majors
+            trigger = None
+            if pair in MAJORS_FIX_LIST and regime == "Trend Breakout" and direction != "None":
                 trigger = get_trigger_price(df, regime, direction, current_atr, macro_phase=macro_phase)
                 # print(f" {pair} | Running OPTIMIZED Major Logic...") # Removed to keep standard formatting clean
-            elif regime == "Trend Breakout":
+            elif regime == "Trend Breakout" and direction != "None":
                 trigger = get_trigger_price(df, regime, direction, current_atr, macro_phase="WIN_PHASE")
                 # print(f" {pair} | Running STANDARD Logic (Win-streak active)") # Removed to keep standard formatting clean
+            
+            # Update summary direction AFTER all filters
+            breakout_directions[pair] = direction
             
             # Diagnostic: show current state
             msg = f"  {pair:<12} | Regime: {regime:<15} | Dir: {direction}"
