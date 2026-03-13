@@ -42,28 +42,47 @@ TRANSACTION_COST = 0.0002        # 2 pips per round trip (cost per trade)
 
 def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
     """
-    Historical version of the 'Bouncer' logic for March 2026 context.
+    Historical Hybrid Bouncer (Threshold + Momentum).
     Uses macro_data already fetched during backtest.
     """
     if ticker != "EURUSD=X" or macro_data is None:
         return "ALLOW"
 
     try:
-        # 2026 March 13 Critical Thresholds
-        DXY_LEVEL = 100.00
+        # Thresholds
+        DXY_WALL = 100.40
         OIL_DANGER_ZONE = 98.00 
+        MOM_THRESHOLD = 0.0025 # 0.25% daily spike
 
         dxy_df = macro_data.get('DX-Y.NYB')
-        oil_df = macro_data.get('BZ=F') # Using Brent as requested
+        oil_df = macro_data.get('BZ=F')
 
         if dxy_df is None or oil_df is None or dxy_df.empty or oil_df.empty:
             return "ALLOW"
 
-        # Filter data up to current_time only
-        dxy_price = dxy_df[dxy_df.index <= current_time]['Close'].iloc[-1]
-        oil_price = oil_df[oil_df.index <= current_time]['Close'].iloc[-1]
+        # Filter and calculate 24h change (approx 24 bars)
+        dxy_slice = dxy_df[dxy_df.index <= current_time]
+        oil_slice = oil_df[oil_df.index <= current_time]
 
-        if oil_price > OIL_DANGER_ZONE and dxy_price > DXY_LEVEL:
+        if len(dxy_slice) < 25:
+            return "ALLOW"
+
+        current_dxy = dxy_slice['Close'].iloc[-1]
+        current_oil = oil_slice['Close'].iloc[-1]
+        
+        # Daily change lookback (24 bars)
+        dxy_change = (current_dxy - dxy_slice['Close'].iloc[-25]) / dxy_slice['Close'].iloc[-25]
+
+        # 1. Hard Stop
+        if current_dxy > DXY_WALL or current_oil > OIL_DANGER_ZONE:
+            return "BEARISH_ONLY"
+            
+        # 2. Momentum Warning
+        if dxy_change > MOM_THRESHOLD:
+            return "BEARISH_ONLY"
+            
+        # 3. Pivot Level + Direction
+        if current_dxy > 98.50 and dxy_change > 0:
             return "BEARISH_ONLY"
             
         return "ALLOW"

@@ -71,24 +71,38 @@ def check_macro_alignment(ticker, direction, macro_data):
 class FundamentalBouncer:
     def __init__(self):
         # 2026 March 13 Critical Thresholds
-        self.DXY_RESISTANCE = 100.40  # DXY is currently 100.32
-        self.OIL_DANGER_ZONE = 98.00   # Brent is currently $101.07
+        self.DXY_WALL = 100.40
+        self.OIL_DANGER_ZONE = 98.00
+        self.MOMENTUM_THRESHOLD = 0.0025 # 0.25% daily USD spike
         
     def get_bias(self):
         try:
             import yfinance as yf
-            # Pulling current 2026 price data
-            dxy = yf.Ticker("DX-Y.NYB").history(period="1d")['Close'].iloc[-1]
-            oil = yf.Ticker("BZ=F").history(period="1d")['Close'].iloc[-1] # Brent
+            # 1. Fetch Price Data
+            dxy_history = yf.Ticker("DX-Y.NYB").history(period="2d")['Close']
+            oil = yf.Ticker("BZ=F").history(period="1d")['Close'].iloc[-1]
             
-            # Logic: If Oil is high (>98) and USD is strong (>100), 
-            # Euro is fundamentally 'forbidden' to be Long.
-            if oil > self.OIL_DANGER_ZONE and dxy > 100.00:
-                # print(f"Fundamental Bias: BEARISH_ONLY (Oil: ${oil:.2f}, DXY: {dxy:.2f})")
+            if len(dxy_history) < 2:
+                return "NEUTRAL"
+                
+            current_dxy = dxy_history.iloc[-1]
+            dxy_change = (current_dxy - dxy_history.iloc[-2]) / dxy_history.iloc[-2]
+            
+            # --- Logic: The Hybrid Bouncer ---
+            # 1. Hard Stop (The Wall)
+            if current_dxy > self.DXY_WALL or oil > self.OIL_DANGER_ZONE:
                 return "BEARISH_ONLY"
+                
+            # 2. Velocity Warning (The Proactive Filter)
+            # If USD is spiking fast (>0.25%) or DXY is high (>98.5) and rising, stay out.
+            if dxy_change > self.MOMENTUM_THRESHOLD:
+                return "BEARISH_ONLY"
+            
+            if current_dxy > 98.50 and dxy_change > 0:
+                return "BEARISH_ONLY"
+
             return "NEUTRAL"
-        except Exception as e:
-            # print(f"Macro Filter Error: {e}")
+        except Exception:
             return "NEUTRAL"
 
 def main():
