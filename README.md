@@ -3,10 +3,12 @@
 A quantitative tool to scan multiple currency pairs using Clustering for asset grouping and Hidden Markov Models (HMM) for breakout state detection.
 
 ## Features
-- **Data Acquisition**: Fetches hourly historical data for 20 currency pairs using `yfinance`.
+- **Data Acquisition**: Fetches 70 days of hourly historical data via `yfinance`.
 - **Clustering**: Groups assets with similar price action using Hierarchical Clustering.
-- **Breakout Detection**: Uses a 4-state Gaussian HMM (Stable, Trend, Breakout, Noise) to identify the current market regime for each pair.
-- **Geopolitical Risk (GPR) Overlay**: Integrates the Geopolitical Risk Index to adjust risk thresholds and trigger safe-haven modes during spikes.
+- **Breakout Detection**: Uses a 3-state Gaussian HMM (Consolidation, Mean Reversion, Trend Breakout) for regime detection.
+- **Daily Retraining**: Automatically fits a new model every 24 hours (or per run) using a 1,200-bar "Goldilocks" window to stay relevant to current market conditions.
+- **Dynamic ATR Thresholds**: Adaptive volatility filters that scale based on the asset type (FX vs Commodities).
+- **Geopolitical Risk (GPR) Overlay**: Integrates the Geopolitical Risk Index to adjust risk thresholds.
 - **Visualization**: Generates a correlation heatmap of the clusters.
 
 ## Installation
@@ -37,6 +39,23 @@ A quantitative tool to scan multiple currency pairs using Clustering for asset g
    ```powershell
    python main.py
    ```
+
+## Training
+
+The HMM model is designed for **Daily Retraining** to prevent model drift.
+
+### Automatic Training
+The training process is fully automated. Every time you run `python main.py`:
+1.  The scanner fetches the last 70 days of hourly data.
+2.  It slices the data to the most recent **1,200 hourly bars** (approx. 2 months).
+3.  A new Gaussian HMM is fitted to this data for each currency pair.
+
+### Manual Retraining / Backtesting
+To evaluate the model's training performance on historical data, run the walk-forward backtester:
+```powershell
+python backtest.py
+```
+This script simulates the daily retraining process over 6 months of historical data.
 
 ## Troubleshooting
 
