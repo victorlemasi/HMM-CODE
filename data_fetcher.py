@@ -16,9 +16,19 @@ def fetch_data(tickers: List[str], interval: str, period: str) -> Dict[str, pd.D
     if isinstance(tickers, str):
         tickers = [tickers]
 
+    import logging
+    yf.set_tz_cache_location('yfinance_cache') # Keep this just in case
+    logger = logging.getLogger('yfinance')
+    logger.disabled = True
+
     for pair in tickers:
         print(f"Fetching data for {pair}...", end=" ")
-        df = yf.download(pair, interval=interval, period=period, progress=False)
+        
+        # Suppress yfinance error printing
+        try:
+            df = yf.download(pair, interval=interval, period=period, progress=False, show_errors=False)
+        except Exception:
+            df = pd.DataFrame()
         if hasattr(df, 'empty') and not df.empty:
             # Handle potential MultiIndex columns or multi-level downloads
             if isinstance(df.columns, pd.MultiIndex):
