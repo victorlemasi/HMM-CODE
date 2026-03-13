@@ -68,39 +68,28 @@ def check_macro_alignment(ticker, direction, macro_data):
         
     return "TRAP_PHASE"
 
-def get_macro_permission(pair):
-    """
-    Acts as a 'Bouncer' for EURUSD trades based on institutional fundamentals.
-    """
-    if pair != "EURUSD=X":
-        return "ALLOW" # Don't interfere with your winning Gold/CHF pairs
-
-    try:
-        import yfinance as yf
-        # 1. Fetch Proxy Fundamental Data
-        dxy = yf.Ticker("DX-Y.NYB").history(period="2d")['Close']
-        oil = yf.Ticker("CL=F").history(period="2d")['Close']
+class FundamentalBouncer:
+    def __init__(self):
+        # 2026 March 13 Critical Thresholds
+        self.DXY_RESISTANCE = 100.40  # DXY is currently 100.32
+        self.OIL_DANGER_ZONE = 98.00   # Brent is currently $101.07
         
-        if len(dxy) < 2 or len(oil) < 1:
-            return "ALLOW"
+    def get_bias(self):
+        try:
+            import yfinance as yf
+            # Pulling current 2026 price data
+            dxy = yf.Ticker("DX-Y.NYB").history(period="1d")['Close'].iloc[-1]
+            oil = yf.Ticker("BZ=F").history(period="1d")['Close'].iloc[-1] # Brent
             
-        dxy_change = (dxy.iloc[-1] - dxy.iloc[-2]) / dxy.iloc[-2]
-        current_oil = oil.iloc[-1]
-
-        # 2. Institutional Logic (March 2026 Context)
-        # If USD is getting stronger (DXY up) or Energy is expensive (Oil up)
-        # the Euro is fundamentally weak.
-        if dxy_change > 0.002 or current_oil > 95:
-            return "SHORT_ONLY"
-        
-        elif dxy_change < -0.002 and current_oil < 80:
-            return "LONG_ONLY"
-            
-        return "ALLOW"
-        
-    except Exception as e:
-        print(f"Macro Filter Error: {e}")
-        return "ALLOW" # Fallback to standard logic if data fails
+            # Logic: If Oil is high (>98) and USD is strong (>100), 
+            # Euro is fundamentally 'forbidden' to be Long.
+            if oil > self.OIL_DANGER_ZONE and dxy > 100.00:
+                # print(f"Fundamental Bias: BEARISH_ONLY (Oil: ${oil:.2f}, DXY: {dxy:.2f})")
+                return "BEARISH_ONLY"
+            return "NEUTRAL"
+        except Exception as e:
+            # print(f"Macro Filter Error: {e}")
+            return "NEUTRAL"
 
 def main():
     # 0. Global Sentiment Assessment
@@ -110,6 +99,12 @@ def main():
     
     sent_val, sent_class, sent_recom = fetch_market_sentiment()
     print(f"Market Sentiment: {sent_val} ({sent_class}) -> RECOMMENDATION: {sent_recom}")
+    
+    # Fundamental Bouncer (Override Switch)
+    bouncer = FundamentalBouncer()
+    current_bias = bouncer.get_bias()
+    if current_bias != "NEUTRAL":
+        print(f"Fundamental Bouncer Status: {current_bias}")
     
     # 1. Fetch data
     print("\n=== Currency Pair Analysis Pipeline ===")
@@ -149,14 +144,11 @@ def main():
             if pair in MAJORS_FIX_LIST and regime == "Trend Breakout":
                 macro_phase = check_macro_alignment(pair, direction, macro_data)
             
-            # --- APPLY THE FUNDAMENTAL BOUNCER ---
-            macro_bias = get_macro_permission(pair)
-            if macro_bias == "SHORT_ONLY" and direction == "LONG":
-                print(f"  {pair} | SIGNAL REJECTED: Macro bias is Bearish.")
-                direction = "None"
-            elif macro_bias == "LONG_ONLY" and direction == "SHORT":
-                print(f"  {pair} | SIGNAL REJECTED: Macro bias is Bullish.")
-                direction = "None"
+            # --- APPLY THE FUNDAMENTAL BOUNCER (Override Switch) ---
+            if pair == "EURUSD=X":
+                if current_bias == "BEARISH_ONLY" and direction == "LONG":
+                    print(f"  {pair} | SIGNAL REJECTED: Oil Shock + DXY Strength is too high.")
+                    direction = "None"
             
             # Calculate 1.2 Candle Trigger for Majors
             trigger = None

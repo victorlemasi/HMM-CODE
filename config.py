@@ -29,6 +29,7 @@ CORE_ENERGY_TICKER = 'CL=F' # Crude Oil for context
 # Asset-Specific HMM Features
 COMMODITY_TICKERS = {
     'OIL': 'CL=F',
+    'BRENT': 'BZ=F',
     'COPPER': 'HG=F',
     'GOLD': 'GC=F'
 }
