@@ -24,6 +24,21 @@ def calculate_atr(df, period=14):
     true_range = np.max(ranges, axis=1)
     return true_range.rolling(window=period).mean()
 
+def calculate_z_score(series, window=100):
+    """
+    Calculates the Volatility-Adjusted Z-Score for jump detection.
+    """
+    if len(series) < 2:
+        return 0.0
+    returns = series.pct_change().dropna()
+    if returns.empty:
+        return 0.0
+    mean = returns.rolling(window=window).mean().iloc[-1]
+    std = returns.rolling(window=window).std().iloc[-1]
+    if std == 0 or np.isnan(std):
+        return 0.0
+    return (returns.iloc[-1] - mean) / std
+
 def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = None, model=None):
     """
     Fits an HMM to detect price regimes using BIC for optimal state selection.
@@ -210,7 +225,11 @@ def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = Non
         direction = "LONG" if avg_ret > 0 else "SHORT"
     
     current_atr = float(df['ATR'].iloc[-1])
-    return is_breakout, direction, regime, current_state_id, current_atr
+    # Get the posterior probability of the current state
+    state_probs = model.predict_proba(features_scaled)
+    current_prob = float(state_probs[-1, current_state_id])
+    
+    return is_breakout, direction, regime, current_state_id, current_atr, current_prob
 
 def get_dynamic_exit_levels(regime, price, atr, direction, ticker=None):
     """

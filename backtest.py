@@ -41,11 +41,6 @@ TRANSACTION_COST = 0.0002        # 2 pips per round trip (cost per trade)
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-    return check_fundamental_gatekeeper(ticker, current_time, macro_data)
-    except Exception:
-        return "ALLOW"
-
-
 def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None) -> dict:
     """
     Runs a walk-forward backtest for a single currency pair.
@@ -69,7 +64,7 @@ def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None
         train_slice = df.iloc[t - TRAIN_WINDOW:t].copy()
 
         try:
-            is_breakout, direction, regime, _, current_atr = detect_breakout(train_slice, ticker=ticker, macro_data=macro_data)
+            is_breakout, direction, regime, _, current_atr, prob = detect_breakout(train_slice, ticker=ticker, macro_data=macro_data)
         except Exception:
             continue
 
@@ -77,17 +72,27 @@ def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None
         if regime in ('Trend Breakout', 'Mean Reversion'):
             direction_hmm = 'LONG' if direction == 'LONG' else 'SHORT'
             
-            # --- APPLY THE FUNDAMENTAL BOUNCER (Backtest Version) ---
-            macro_bias = check_fundamental_gatekeeper(ticker, df.index[t], macro_data)
+            # --- APPLY MACRO WEIGHTING (Stochastic Logic) ---
+            from macro_bouncer import get_macro_weight
+            macro_weight = get_macro_weight(ticker, direction_hmm, macro_data)
+            adjusted_prob = prob * macro_weight
             
-            if macro_bias == "BEARISH_ONLY" and direction_hmm == "LONG":
-                print(f"\n  [VETO] {ticker} LONG signal rejected: Macro Bias (RBNZ/DXY/Yields)")
-                desired = 0 
-            elif macro_bias == "BULLISH_ONLY" and direction_hmm == "SHORT":
-                print(f"\n  [VETO] {ticker} SHORT signal rejected: Macro Bias (Correlation/RBNZ)")
-                desired = 0 
+            # --- CONFIDENCE THRESHOLD ---
+            if adjusted_prob < 0.6:
+                # print(f"  [VETO] {ticker} Low Confidence ({adjusted_prob:.2f})")
+                desired = 0
             else:
-                desired = 1 if direction_hmm == 'LONG' else -1
+                # --- APPLY THE FUNDAMENTAL BOUNCER (Global Gatekeeper) ---
+                macro_bias = check_fundamental_gatekeeper(ticker, df.index[t], macro_data)
+                
+                if macro_bias == "BEARISH_ONLY" and direction_hmm == "LONG":
+                    # print(f"  [VETO] {ticker} LONG signal rejected: Macro Bias")
+                    desired = 0 
+                elif macro_bias == "BULLISH_ONLY" and direction_hmm == "SHORT":
+                    # print(f"  [VETO] {ticker} SHORT signal rejected: Macro Bias")
+                    desired = 0 
+                else:
+                    desired = 1 if direction_hmm == 'LONG' else -1
 
         # Calculate levels for the NEW desired position
         current_price = df['Close'].iloc[t]

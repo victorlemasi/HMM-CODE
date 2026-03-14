@@ -1,17 +1,40 @@
 import pandas as pd
-from data_fetcher import fetch_data, get_returns_matrix, get_macro_data
+import time
+from datetime import datetime, timedelta
+from data_fetcher import fetch_data, get_returns_matrix, get_macro_data, fetch_watchdog_data
 from clustering import cluster_assets, plot_clusters
-from hmm_analysis import detect_breakout, get_dynamic_exit_levels, get_trigger_price
+from hmm_analysis import detect_breakout, get_dynamic_exit_levels, get_trigger_price, calculate_z_score
 from config import (
     CURRENCY_PAIRS, INTERVAL, PERIOD, N_CLUSTERS, GPR_SPIKE_THRESHOLD, 
     SAFE_HAVEN_TICKER, MAJORS_FIX_LIST, MAJORS_MACRO_ENABLE, 
-    ASSET_MAPPINGS, YIELD_TICKERS, YIELD_THRESHOLD, CONFIRMATION_BUFFER, MAJORS_TP_MULTIPLIER
+    ASSET_MAPPINGS, YIELD_TICKERS, YIELD_THRESHOLD, CONFIRMATION_BUFFER, MAJORS_TP_MULTIPLIER,
+    WATCHDOG_TICKERS
 )
 from gpr_fetcher import fetch_latest_gpr
 
 from sentiment_fetcher import fetch_market_sentiment
 from rebalancer import diversify_signals, find_correlation_hedges, get_exit_recommendations
-from macro_bouncer import check_fundamental_gatekeeper
+from macro_bouncer import check_fundamental_gatekeeper, get_macro_weight
+
+class JumpWatchdog:
+    def __init__(self, tickers):
+        self.tickers = tickers
+        self.paused_until = None
+        
+    def check_for_jumps(self):
+        if self.paused_until and datetime.now() < self.paused_until:
+            return True
+            
+        print("\n--- Running 1-Minute Jump Watchdog ---")
+        wd_data = fetch_watchdog_data(self.tickers)
+        for ticker, df in wd_data.items():
+            z_score = calculate_z_score(df['Close'])
+            if abs(z_score) > 3.0:
+                print(f"!!! JUMP DETECTED on {ticker} (Z-Score: {z_score:.2f}) !!!")
+                print("ACTION: Pausing all trading operations for 15 minutes.")
+                self.paused_until = datetime.now() + timedelta(minutes=15)
+                return True
+        return False
 
 def get_yield_spread_momentum(ticker, macro_data):
     """
@@ -71,6 +94,8 @@ def check_macro_alignment(ticker, direction, macro_data):
 
 
 def main():
+    watchdog = JumpWatchdog(WATCHDOG_TICKERS)
+    
     # 0. Global Sentiment Assessment
     print("\n--- Market Sentiment & Risk Assessment ---")
     gpr_val, is_gpr_spike, gpr_msg = fetch_latest_gpr(threshold_std=GPR_SPIKE_THRESHOLD)
@@ -81,13 +106,19 @@ def main():
     
     # 1. Fetch data
     print("\n=== Currency Pair Analysis Pipeline ===")
+    
+    # --- JUMP WATCHDOG CHECK ---
+    if watchdog.check_for_jumps():
+        print("Trading paused due to market shock. Skipping analysis.")
+        return
+
     data = fetch_data(CURRENCY_PAIRS, INTERVAL, PERIOD)
     
     if not data:
         print("No data fetched. Exiting.")
         return
         
-    print("\n--- Fetching Macro Context (Yields/Commodities) ---")
+    print("\n--- Fetching Macro Context (Yields/Commodities/Rates) ---")
     macro_data = get_macro_data(INTERVAL, PERIOD)
     
     # 2. Clustering Analysis (Optimized via Silhouette)
@@ -104,8 +135,12 @@ def main():
     
     for pair, df in data.items():
         try:
-            is_breakout, direction, regime, _, current_atr = detect_breakout(df, ticker=pair, macro_data=macro_data)
+            is_breakout, direction, regime, _, current_atr, prob = detect_breakout(df, ticker=pair, macro_data=macro_data)
             regime_results[pair] = regime
+            
+            # --- APPLY MACRO WEIGHTING ---
+            macro_weight = get_macro_weight(pair, direction, macro_data)
+            adjusted_prob = prob * macro_weight
             
             # Calculate Dynamic Exit Levels
             current_price = df['Close'].iloc[-1]
@@ -130,20 +165,23 @@ def main():
             elif gatekeeper_status == "SCALP_ONLY" and pair == "CL=F":
                 print(f"  {pair} | WAR-TIME SCALP MODE: Tightening TP/SL.")
             
+            # --- CONFIDENCE THRESHOLD ---
+            if adjusted_prob < 0.6 and direction != "None":
+                 print(f"  [VETO] {pair} Signal Rejected: Low Macro-Adjusted Confidence ({adjusted_prob:.2f})")
+                 direction = "None"
+
             # Calculate 1.2 Candle Trigger for Majors
             trigger = None
             if pair in MAJORS_FIX_LIST and regime == "Trend Breakout" and direction != "None":
                 trigger = get_trigger_price(df, regime, direction, current_atr, macro_phase=macro_phase)
-                # print(f" {pair} | Running OPTIMIZED Major Logic...") # Removed to keep standard formatting clean
             elif regime == "Trend Breakout" and direction != "None":
                 trigger = get_trigger_price(df, regime, direction, current_atr, macro_phase="WIN_PHASE")
-                # print(f" {pair} | Running STANDARD Logic (Win-streak active)") # Removed to keep standard formatting clean
             
             # Update summary direction AFTER all filters
             breakout_directions[pair] = direction
             
             # Diagnostic: show current state
-            msg = f"  {pair:<12} | Regime: {regime:<15} | Dir: {direction}"
+            msg = f"  {pair:<12} | Regime: {regime:<15} | Dir: {direction} | Conf: {adjusted_prob:.2f}"
             if pair in MAJORS_FIX_LIST and regime == "Trend Breakout":
                 msg += f" | Macro: {macro_phase}"
             if tp and sl:

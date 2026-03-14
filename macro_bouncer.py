@@ -115,3 +115,48 @@ def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
         return "ALLOW"
     except Exception:
         return "ALLOW"
+def get_macro_weight(ticker: str, direction: str, macro_data: dict) -> float:
+    """
+    Returns a confidence weight (e.g., 1.2 or 0.8) based on Policy Rate differentials.
+    """
+    if macro_data is None or direction == "None":
+        return 1.0
+        
+    from config import POLICY_RATE_TICKERS, ASSET_MAPPINGS
+    
+    if ticker not in ASSET_MAPPINGS or ASSET_MAPPINGS[ticker]['type'] != 'macro':
+        return 1.0
+        
+    mapping = ASSET_MAPPINGS[ticker]
+    base_currency = mapping['base_currency'] if 'base_currency' in mapping else ticker[:3]
+    quote_currency = mapping['quote_currency'] if 'quote_currency' in mapping else ticker[3:6]
+    
+    base_rate_ticker = POLICY_RATE_TICKERS.get(base_currency)
+    quote_rate_ticker = POLICY_RATE_TICKERS.get(quote_currency)
+    
+    if not base_rate_ticker or not quote_rate_ticker:
+        return 1.0
+        
+    base_df = macro_data.get(base_rate_ticker)
+    quote_df = macro_data.get(quote_rate_ticker)
+    
+    if base_df is None or quote_df is None or base_df.empty or quote_df.empty:
+        return 1.0
+        
+    current_base = base_df['Close'].iloc[-1]
+    current_quote = quote_df['Close'].iloc[-1]
+    
+    # Hawkish Base + Dovish Quote = Bullish for Pair
+    # Direction check
+    if direction == "LONG":
+        if current_base > current_quote:
+            return 1.2
+        elif current_base < current_quote:
+            return 0.8
+    elif direction == "SHORT":
+        if current_base < current_quote:
+            return 1.2
+        elif current_base > current_quote:
+            return 0.8
+            
+    return 1.0

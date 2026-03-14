@@ -53,6 +53,20 @@ FRED_TICKERS = {
 MAJORS_MACRO_ENABLE = True
 YIELD_THRESHOLD = 0.05  # Minimum bps change to consider it a "Macro Trend"
 
+# Central Bank Policy Rates (FRED Tickers)
+POLICY_RATE_TICKERS = {
+    'USD': 'FEDFUNDS',
+    'EUR': 'ECB_FIXED_RATE_FOR_MAIN_REFINANCING_OPERATIONS_DAILY', # Note: Usually monthly/daily
+    'GBP': 'IRLTLT01GBM156N', # Proxy if daily bank rate not available
+    'JPY': 'IRSTCI01JPM156N',
+    'AUD': 'IRSTCI01AUM156N',
+    'CAD': 'IRSTCI01CAM156N',
+    'NZD': 'IRSTCI01NZM156N'
+}
+
+# 1-minute Watchdog Tickers
+WATCHDOG_TICKERS = ['EURUSD=X', 'GBPUSD=X', 'USDJPY=X', 'GC=F', 'CL=F']
+
 ASSET_MAPPINGS = {
     'AUDUSD=X': {'type': 'commodity', 'key': 'COPPER'},
     'USDCAD=X': {'type': 'commodity', 'key': 'OIL'},

@@ -86,7 +86,7 @@ def get_macro_data(interval: str, period: str) -> Dict[str, pd.DataFrame]:
     """
     Fetches global macro tickers from Yahoo and FRED.
     """
-    from config import COMMODITY_TICKERS, YIELD_TICKERS, FRED_TICKERS
+    from config import COMMODITY_TICKERS, YIELD_TICKERS, FRED_TICKERS, POLICY_RATE_TICKERS
     
     # Yahoo Data
     macro_tickers = list(COMMODITY_TICKERS.values()) + list(YIELD_TICKERS.values())
@@ -94,8 +94,10 @@ def get_macro_data(interval: str, period: str) -> Dict[str, pd.DataFrame]:
     data = fetch_data(macro_tickers, interval=interval, period=period)
     
     # FRED Data
-    if FRED_TICKERS:
-        fred_data = fetch_fred_data(list(FRED_TICKERS.values()))
+    fred_tickers = list(FRED_TICKERS.values()) + list(POLICY_RATE_TICKERS.values())
+    fred_tickers = list(set(fred_tickers))
+    if fred_tickers:
+        fred_data = fetch_fred_data(fred_tickers)
         data.update(fred_data)
         
     return data
@@ -120,6 +122,12 @@ def get_returns_matrix(data: Dict[str, pd.DataFrame]) -> pd.DataFrame:
     returns_df = pd.DataFrame(returns).dropna()
     print(f"Returns Matrix built: {returns_df.shape}")
     return returns_df
+
+def fetch_watchdog_data(tickers: List[str]) -> Dict[str, pd.DataFrame]:
+    """
+    Fetches latest 1-minute data for jump detection.
+    """
+    return fetch_data(tickers, interval='1m', period='1d')
 
 if __name__ == "__main__":
     test_data = fetch_data()
