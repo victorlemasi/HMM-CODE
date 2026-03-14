@@ -112,6 +112,17 @@ def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
         if current_dxy > 98.50 and dxy_change > 0:
             return "BEARISH_ONLY"
             
+        # --- RBNZ BIAS FILTER (Carry Trade Protection) ---
+        # "Short NZD" is expensive (Negative Carry) in hawkish 2026.
+        # NZD Base (NZDJPY, NZDUSD) -> Veto SHORT
+        # NZD Quote (EURNZD, GBPNZD, AUDNZD) -> Veto LONG
+        RBNZ_HAWKISH = True # Current 2026 State
+        if "NZD" in ticker and RBNZ_HAWKISH:
+            if ticker.startswith("NZD"):
+                return "BULLISH_ONLY" # Block SHORT (Short NZD)
+            else:
+                return "BEARISH_ONLY" # Block LONG (Short NZD)
+
         return "ALLOW"
     except Exception:
         return "ALLOW"
@@ -152,9 +163,11 @@ def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None
             macro_bias = check_fundamental_gatekeeper(ticker, df.index[t], macro_data)
             
             if macro_bias == "BEARISH_ONLY" and direction_hmm == "LONG":
-                desired = 0 # Signal Rejected: Oil Shock + DXY Strength
+                print(f"\n  [VETO] {ticker} LONG signal rejected: Macro Bias (RBNZ/DXY/Yields)")
+                desired = 0 
             elif macro_bias == "BULLISH_ONLY" and direction_hmm == "SHORT":
-                desired = 0 # Signal Rejected: Oil ATR Spike (Veto Long JPY)
+                print(f"\n  [VETO] {ticker} SHORT signal rejected: Macro Bias (Correlation/RBNZ)")
+                desired = 0 
             else:
                 desired = 1 if direction_hmm == 'LONG' else -1
 
