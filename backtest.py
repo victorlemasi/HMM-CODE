@@ -142,6 +142,33 @@ def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
                 else:
                     return "BEARISH_ONLY" # Block LONG (Short NZD)
 
+        # --- GLOBAL YIELD SPREAD GATES (EURUSD, GBPUSD FIX) ---
+        if ticker in ["EURUSD=X", "GBPUSD=X"]:
+            base_yield_key = 'IRLTLT01DEM156N' if "EUR" in ticker else 'IRLTLT01GBM156N'
+            us_yield_key = '^TNX'
+            
+            base_y_df = macro_data.get(base_yield_key)
+            us_y_df = macro_data.get(us_yield_key)
+            
+            if base_y_df is not None and us_y_df is not None:
+                base_slice = base_y_df[base_y_df.index <= current_time]
+                us_slice = us_y_df[us_y_df.index <= current_time]
+                
+                if not base_slice.empty and not us_slice.empty:
+                    # Calculate 5-day Spread Momentum
+                    # Since these are monthly/daily yields, we look back ~120 bars (5 days in 1h bars)
+                    if len(base_slice) >= 120 and len(us_slice) >= 120:
+                        spread_current = base_slice['Close'].iloc[-1] - us_slice['Close'].iloc[-1]
+                        spread_prev = base_slice['Close'].iloc[-120] - us_slice['Close'].iloc[-120]
+                        spread_momentum = spread_current - spread_prev
+                        
+                        # Veto Long if Spread is falling (against base currency)
+                        if spread_momentum < -0.05: # Spread narrowing by 5bps
+                             return "BEARISH_ONLY"
+                        # Veto Short if Spread is rising (favoring base currency)
+                        if spread_momentum > 0.05:
+                             return "BULLISH_ONLY"
+
         return "ALLOW"
     except Exception:
         return "ALLOW"
