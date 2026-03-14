@@ -26,6 +26,7 @@ A quantitative tool to scan multiple currency pairs using Clustering for asset g
 26: ### 3. Oil (CL=F) — Geopolitical Sensor
 27: - **DXY Stress Mode**: Automatically switches to "Scalp Mode" (1:1 Risk/Reward) if DXY > 100.50.
 28: - **Time-Decay Exit**: 4-hour hard exit limit to protect against "Strategic Reserve Release" flash gaps.
+29: - **Energy-Yen Correlation Filter**: Vetos "Long JPY" trades (Short USDJPY, EURJPY, etc.) if Oil ATR spikes > 2% in 4 hours.
 29: 
 30: ### 4. Global Risk Sensors
 31: - **DXY Master Pivot**: Defensive stance triggered if DXY crosses the 100.40 psychological wall.

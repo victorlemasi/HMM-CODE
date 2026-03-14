@@ -81,6 +81,24 @@ def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
             if current_dxy > 100.50:
                 return "SCALP_ONLY"
 
+        # --- OIL-JPY CORRELATION FILTER ---
+        # "Long JPY" = Short USDJPY, EURJPY, CHFJPY, etc.
+        # Veto if Oil ATR spiked > 2% in last 4 hours.
+        if ticker.endswith("JPY=X"):
+            oil_df_corr = macro_data.get('CL=F')
+            if oil_df_corr is not None and not oil_df_corr.empty:
+                oil_slice_corr = oil_df_corr[oil_df_corr.index <= current_time]
+                if len(oil_slice_corr) >= 18:
+                    oil_atr = calculate_atr(oil_slice_corr)
+                    if len(oil_atr) >= 5:
+                        current_oil_atr = oil_atr.iloc[-1]
+                        prev_oil_atr = oil_atr.iloc[-5] # 4 hours ago
+                        if prev_oil_atr > 0:
+                            atr_spike = (current_oil_atr - prev_oil_atr) / prev_oil_atr
+                            if atr_spike > 0.02:
+                                print(f"\n  [VETO] {ticker} Long JPY signal rejected: Oil ATR spiked {atr_spike:.2%}")
+                                return "BULLISH_ONLY" # Veto Short (Long JPY)
+
         # --- STANDARD (EURUSD) & GENERAL ---
         if oil_df is not None and not oil_df.empty:
             oil_slice = oil_df[oil_df.index <= current_time]
@@ -135,6 +153,8 @@ def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None
             
             if macro_bias == "BEARISH_ONLY" and direction_hmm == "LONG":
                 desired = 0 # Signal Rejected: Oil Shock + DXY Strength
+            elif macro_bias == "BULLISH_ONLY" and direction_hmm == "SHORT":
+                desired = 0 # Signal Rejected: Oil ATR Spike (Veto Long JPY)
             else:
                 desired = 1 if direction_hmm == 'LONG' else -1
 
