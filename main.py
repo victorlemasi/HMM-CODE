@@ -11,6 +11,7 @@ from gpr_fetcher import fetch_latest_gpr
 
 from sentiment_fetcher import fetch_market_sentiment
 from rebalancer import diversify_signals, find_correlation_hedges, get_exit_recommendations
+from macro_bouncer import check_fundamental_gatekeeper
 
 def get_yield_spread_momentum(ticker, macro_data):
     """
@@ -68,54 +69,6 @@ def check_macro_alignment(ticker, direction, macro_data):
         
     return "TRAP_PHASE"
 
-class FundamentalBouncer:
-    def __init__(self):
-        # 2026 March 13 Critical Thresholds
-        self.DXY_WALL = 100.40
-        self.OIL_DANGER_ZONE = 98.00
-        self.MOMENTUM_THRESHOLD = 0.0025 # 0.25% daily USD spike
-        
-    def get_bias(self, ticker=None):
-        try:
-            import yfinance as yf
-            # 1. Fetch Price Data
-            dxy_history = yf.Ticker("DX-Y.NYB").history(period="2d")['Close']
-            oil_price = yf.Ticker("BZ=F").history(period="1d")['Close'].iloc[-1]
-            yield_history = yf.Ticker("^TNX").history(period="2d")['Close']
-            
-            if len(dxy_history) < 2:
-                return "NEUTRAL"
-                
-            current_dxy = dxy_history.iloc[-1]
-            dxy_change = (current_dxy - dxy_history.iloc[-2]) / dxy_history.iloc[-2]
-            
-            # --- GOLD WAR-TIME OVERRIDE ---
-            if ticker == 'GC=F':
-                yield_change = yield_history.iloc[-1] - yield_history.iloc[-2]
-                # If USD is strong and Yields are rising, Gold is a trap
-                if current_dxy > 100.20 or yield_change > 0:
-                    return "BEARISH_ONLY" # Block Longs
-            
-            # --- OIL WAR-TIME OVERRIDE ---
-            if ticker == 'CL=F':
-                if current_dxy > 100.50:
-                    return "SCALP_ONLY" # Take 1:1 risk/reward, exit fast
-            
-            # --- Logic: The Hybrid Bouncer (Standard for FX) ---
-            # 1. Hard Stop (The Wall)
-            if current_dxy > self.DXY_WALL or oil_price > self.OIL_DANGER_ZONE:
-                return "BEARISH_ONLY"
-                
-            # 2. Velocity Warning (The Proactive Filter)
-            if dxy_change > self.MOMENTUM_THRESHOLD:
-                return "BEARISH_ONLY"
-            
-            if current_dxy > 98.50 and dxy_change > 0:
-                return "BEARISH_ONLY"
-
-            return "NEUTRAL"
-        except Exception:
-            return "NEUTRAL"
 
 def main():
     # 0. Global Sentiment Assessment
@@ -125,10 +78,6 @@ def main():
     
     sent_val, sent_class, sent_recom = fetch_market_sentiment()
     print(f"Market Sentiment: {sent_val} ({sent_class}) -> RECOMMENDATION: {sent_recom}")
-    
-    # Fundamental Bouncer (Override Switch)
-    bouncer = FundamentalBouncer()
-    # Bias is checked per-pair in the loop
     
     # 1. Fetch data
     print("\n=== Currency Pair Analysis Pipeline ===")
@@ -168,20 +117,18 @@ def main():
             if pair in MAJORS_FIX_LIST and regime == "Trend Breakout":
                 macro_phase = check_macro_alignment(pair, direction, macro_data)
             
-            # --- APPLY THE FUNDAMENTAL BOUNCER (Override Switch) ---
-            current_bias = bouncer.get_bias(ticker=pair)
-            if pair == "EURUSD=X":
-                if current_bias == "BEARISH_ONLY" and direction == "LONG":
-                    print(f"  {pair} | SIGNAL REJECTED: War-Time Macro Filter Active.")
-                    direction = "None"
-            elif pair == "GC=F":
-                if current_bias == "BEARISH_ONLY" and direction == "LONG":
-                    print(f"  {pair} | WAR_SCALP_4H: Blocking Long due to Yield Pressure.")
-                    direction = "None"
-            elif pair == "CL=F":
-                if current_bias == "SCALP_ONLY" and direction == "LONG":
-                     print(f"  {pair} | WAR-TIME SCALP MODE: Tightening TP/SL.")
-                     # Scalp mode logic: TP/SL will be handled by dynamic level calc
+            # --- APPLY THE FUNDAMENTAL BOUNCER (Global Gatekeeper) ---
+            current_time = df.index[-1]
+            gatekeeper_status = check_fundamental_gatekeeper(pair, current_time, macro_data)
+            
+            if gatekeeper_status == "BEARISH_ONLY" and direction == "LONG":
+                print(f"  [VETO] {pair} LONG signal rejected: Macro Bias.")
+                direction = "None"
+            elif gatekeeper_status == "BULLISH_ONLY" and direction == "SHORT":
+                print(f"  [VETO] {pair} SHORT signal rejected: Macro Bias.")
+                direction = "None"
+            elif gatekeeper_status == "SCALP_ONLY" and pair == "CL=F":
+                print(f"  {pair} | WAR-TIME SCALP MODE: Tightening TP/SL.")
             
             # Calculate 1.2 Candle Trigger for Majors
             trigger = None

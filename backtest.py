@@ -29,6 +29,7 @@ warnings.filterwarnings("ignore")
 # Reuse existing project modules (read-only, no changes needed)
 from data_fetcher import fetch_data, get_macro_data
 from hmm_analysis import detect_breakout, get_dynamic_exit_levels, calculate_atr, get_trigger_price
+from macro_bouncer import check_fundamental_gatekeeper
 from config import CURRENCY_PAIRS, MAJORS_FIX_LIST
 
 # ─── Configuration ─────────────────────────────────────────────────────────────
@@ -40,136 +41,7 @@ TRANSACTION_COST = 0.0002        # 2 pips per round trip (cost per trade)
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
-    """
-    Historical Hybrid Bouncer (Threshold + Momentum + Yields).
-    """
-    if macro_data is None:
-        return "ALLOW"
-
-    try:
-        # Thresholds
-        DXY_WALL = 100.40
-        OIL_DANGER_ZONE = 98.00 
-        MOM_THRESHOLD = 0.0025
-
-        dxy_df = macro_data.get('DX-Y.NYB')
-        oil_df = macro_data.get('BZ=F')
-        yield_df = macro_data.get('^TNX')
-
-        if dxy_df is None or dxy_df.empty:
-            return "ALLOW"
-
-        # Current values
-        dxy_slice = dxy_df[dxy_df.index <= current_time]
-        if len(dxy_slice) < 25: return "ALLOW"
-        
-        current_dxy = dxy_slice['Close'].iloc[-1]
-        dxy_change = (current_dxy - dxy_slice['Close'].iloc[-25]) / dxy_slice['Close'].iloc[-25]
-
-        # --- GOLD OVERRIDE ---
-        if ticker == "GC=F":
-            if yield_df is not None and not yield_df.empty:
-                yield_slice = yield_df[yield_df.index <= current_time]
-                if len(yield_slice) >= 2:
-                    yield_change = yield_slice['Close'].iloc[-1] - yield_slice['Close'].iloc[-2]
-                    if current_dxy > 100.20 or yield_change > 0:
-                        return "BEARISH_ONLY"
-
-        # --- OIL OVERRIDE ---
-        if ticker == "CL=F":
-            if current_dxy > 100.50:
-                return "SCALP_ONLY"
-
-        # --- OIL-JPY CORRELATION FILTER ---
-        # "Long JPY" = Short USDJPY, EURJPY, CHFJPY, etc.
-        # Veto if Oil ATR spiked > 2% in last 4 hours.
-        if ticker.endswith("JPY=X"):
-            oil_df_corr = macro_data.get('CL=F')
-            if oil_df_corr is not None and not oil_df_corr.empty:
-                oil_slice_corr = oil_df_corr[oil_df_corr.index <= current_time]
-                if len(oil_slice_corr) >= 18:
-                    oil_atr = calculate_atr(oil_slice_corr)
-                    if len(oil_atr) >= 5:
-                        current_oil_atr = oil_atr.iloc[-1]
-                        prev_oil_atr = oil_atr.iloc[-5] # 4 hours ago
-                        if prev_oil_atr > 0:
-                            atr_spike = (current_oil_atr - prev_oil_atr) / prev_oil_atr
-                            if atr_spike > 0.02:
-                                print(f"\n  [VETO] {ticker} Long JPY signal rejected: Oil ATR spiked {atr_spike:.2%}")
-                                return "BULLISH_ONLY" # Veto Short (Long JPY)
-
-        # --- STANDARD (EURUSD) & GENERAL ---
-        if oil_df is not None and not oil_df.empty:
-            oil_slice = oil_df[oil_df.index <= current_time]
-            current_oil = oil_slice['Close'].iloc[-1]
-            if current_dxy > DXY_WALL or current_oil > OIL_DANGER_ZONE:
-                return "BEARISH_ONLY"
-
-        if dxy_change > MOM_THRESHOLD:
-            return "BEARISH_ONLY"
-
-        if current_dxy > 98.50 and dxy_change > 0:
-            return "BEARISH_ONLY"
-            
-        # --- RBNZ BIAS FILTER (Live Rates Automation with Robust Fallback) ---
-        # Blocks "Short NZD" if NZ yields are High/Hawkish.
-        # Check Priority: 1. Live Yahoo (^NZ10), 2. FRED (Historical)
-        current_nz_yield = None
-        
-        # 1. Try Live Yahoo
-        live_df = macro_data.get('^NZ10')
-        if live_df is not None:
-            live_slice = live_df[live_df.index <= current_time]
-            if not live_slice.empty:
-                current_nz_yield = live_slice['Close'].iloc[-1]
-        
-        # 2. Try FRED Fallback (if live is missing for this period)
-        if current_nz_yield is None:
-            fred_df = macro_data.get('IRLTLT01NZM156N')
-            if fred_df is not None:
-                fred_slice = fred_df[fred_df.index <= current_time]
-                if not fred_slice.empty:
-                    current_nz_yield = fred_slice['Close'].iloc[-1]
-
-        if current_nz_yield is not None:
-            # Hawkish Regime: Yield > 3.0%
-            is_hawkish = current_nz_yield > 3.0
-            
-            if "NZD" in ticker and is_hawkish:
-                if ticker.startswith("NZD"):
-                    return "BULLISH_ONLY" # Block SHORT (Short NZD)
-                else:
-                    return "BEARISH_ONLY" # Block LONG (Short NZD)
-
-        # --- GLOBAL YIELD SPREAD GATES (EURUSD, GBPUSD FIX) ---
-        if ticker in ["EURUSD=X", "GBPUSD=X"]:
-            base_yield_key = 'IRLTLT01DEM156N' if "EUR" in ticker else 'IRLTLT01GBM156N'
-            us_yield_key = '^TNX'
-            
-            base_y_df = macro_data.get(base_yield_key)
-            us_y_df = macro_data.get(us_yield_key)
-            
-            if base_y_df is not None and us_y_df is not None:
-                base_slice = base_y_df[base_y_df.index <= current_time]
-                us_slice = us_y_df[us_y_df.index <= current_time]
-                
-                if not base_slice.empty and not us_slice.empty:
-                    # Calculate 5-day Spread Momentum
-                    # Since these are monthly/daily yields, we look back ~120 bars (5 days in 1h bars)
-                    if len(base_slice) >= 120 and len(us_slice) >= 120:
-                        spread_current = base_slice['Close'].iloc[-1] - us_slice['Close'].iloc[-1]
-                        spread_prev = base_slice['Close'].iloc[-120] - us_slice['Close'].iloc[-120]
-                        spread_momentum = spread_current - spread_prev
-                        
-                        # Veto Long if Spread is falling (against base currency)
-                        if spread_momentum < -0.05: # Spread narrowing by 5bps
-                             return "BEARISH_ONLY"
-                        # Veto Short if Spread is rising (favoring base currency)
-                        if spread_momentum > 0.05:
-                             return "BULLISH_ONLY"
-
-        return "ALLOW"
+    return check_fundamental_gatekeeper(ticker, current_time, macro_data)
     except Exception:
         return "ALLOW"
 
