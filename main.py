@@ -100,6 +100,12 @@ class JumpWatchdog:
                 return True
         return False
 
+    def get_remaining_pause_minutes(self):
+        if not self.paused_until:
+            return 0
+        diff = self.paused_until - datetime.now()
+        return max(0, int(diff.total_seconds() / 60))
+
 def get_yield_spread_momentum(ticker, macro_data):
     """
     Calculates the 5-bar trend of the yield spread.
@@ -174,7 +180,8 @@ def main():
     
     # --- JUMP WATCHDOG CHECK ---
     if watchdog.check_for_jumps():
-        print("Trading paused due to market shock. Skipping analysis.")
+        rem = watchdog.get_remaining_pause_minutes()
+        print(f"Trading paused due to market shock. Resuming in {rem} minutes.")
         return
 
     data = fetch_data(CURRENCY_PAIRS, INTERVAL, PERIOD)
