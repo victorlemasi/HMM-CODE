@@ -112,16 +112,21 @@ def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
         if current_dxy > 98.50 and dxy_change > 0:
             return "BEARISH_ONLY"
             
-        # --- RBNZ BIAS FILTER (Carry Trade Protection) ---
-        # "Short NZD" is expensive (Negative Carry) in hawkish 2026.
-        # NZD Base (NZDJPY, NZDUSD) -> Veto SHORT
-        # NZD Quote (EURNZD, GBPNZD, AUDNZD) -> Veto LONG
-        RBNZ_HAWKISH = True # Current 2026 State
-        if "NZD" in ticker and RBNZ_HAWKISH:
-            if ticker.startswith("NZD"):
-                return "BULLISH_ONLY" # Block SHORT (Short NZD)
-            else:
-                return "BEARISH_ONLY" # Block LONG (Short NZD)
+        # --- RBNZ BIAS FILTER (Real Rates Automation) ---
+        # Blocks "Short NZD" if NZ yields are High/Hawkish.
+        nz_yield_df = macro_data.get('IRLTLT01NZM156N')
+        if nz_yield_df is not None and not nz_yield_df.empty:
+            nz_slice = nz_yield_df[nz_yield_df.index <= current_time]
+            if not nz_slice.empty:
+                current_nz_yield = nz_slice['Close'].iloc[-1]
+                # Hawkish Regime: Yield > 3.0% or 10-month momentum positive
+                is_hawkish = current_nz_yield > 3.0
+                
+                if "NZD" in ticker and is_hawkish:
+                    if ticker.startswith("NZD"):
+                        return "BULLISH_ONLY" # Block SHORT (Short NZD)
+                    else:
+                        return "BEARISH_ONLY" # Block LONG (Short NZD)
 
         return "ALLOW"
     except Exception:

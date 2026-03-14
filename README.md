@@ -32,7 +32,7 @@ A quantitative tool to scan multiple currency pairs using Clustering for asset g
 31: - **DXY Master Pivot**: Defensive stance triggered if DXY crosses the 100.40 psychological wall.
 32: - **Brent Oil Gauge**: Tightens stops across the portfolio if Brent Crude exceeds $98/bbl.
 33: - **Sentiment Filter**: Integrates Real-time Fear & Greed sentiment to suppress reversal signals during extreme panic.
-- **RBNZ Bias Filter (Carry Trade Protection)**: Blocks "Short NZD" signals (e.g., Short NZDJPY, Long EURNZD) during Hawkish RBNZ regimes to avoid negative carry and capitalized on yield-attraction flows in the 2026 environment.
+- **RBNZ Bias Filter (Automated Carry Protection)**: Uses **FRED (St. Louis Fed)** data to fetch real NZ 10Y Yields (`IRLTLT01NZM156N`). If yields indicate a hawkish regime (>3.0%), the system automatically blocks high-cost "Short NZD" signals (e.g., Short NZDJPY) to avoid negative carry and capitalize on yield-attraction flows.
 34: 
 
 ## Installation

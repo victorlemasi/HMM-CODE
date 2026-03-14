@@ -1,6 +1,8 @@
 import yfinance as yf
 import pandas as pd
 import time
+import requests
+import io
 from typing import List, Dict
 from config import CURRENCY_PAIRS, INTERVAL, PERIOD
 
@@ -58,15 +60,45 @@ def fetch_data(tickers: List[str], interval: str, period: str) -> Dict[str, pd.D
         time.sleep(0.5) # Anti-rate-limit delay between tickers
     return data
 
+def fetch_fred_data(tickers: List[str]) -> Dict[str, pd.DataFrame]:
+    """
+    Fetches economic data directly from FRED CSV exports.
+    """
+    data = {}
+    for ticker in tickers:
+        print(f"Fetching {ticker} from FRED...", end=" ", flush=True)
+        url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={ticker}"
+        try:
+            response = requests.get(url, timeout=10)
+            if response.status_code == 200:
+                df = pd.read_csv(io.BytesIO(response.content), index_col='observation_date', parse_dates=True)
+                # Rename the value column to 'Close' to match the system expectation
+                df.columns = ['Close']
+                data[ticker] = df
+                print("Done.")
+            else:
+                print(f"Failed (HTTP {response.status_code})")
+        except Exception:
+            print("Failed (Connection Error)")
+    return data
+
 def get_macro_data(interval: str, period: str) -> Dict[str, pd.DataFrame]:
     """
-    Fetches global macro tickers (Yields, Commodities) defined in config.
+    Fetches global macro tickers from Yahoo and FRED.
     """
-    from config import COMMODITY_TICKERS, YIELD_TICKERS
+    from config import COMMODITY_TICKERS, YIELD_TICKERS, FRED_TICKERS
+    
+    # Yahoo Data
     macro_tickers = list(COMMODITY_TICKERS.values()) + list(YIELD_TICKERS.values())
-    # Remove duplicates
     macro_tickers = list(set(macro_tickers))
-    return fetch_data(macro_tickers, interval=interval, period=period)
+    data = fetch_data(macro_tickers, interval=interval, period=period)
+    
+    # FRED Data
+    if FRED_TICKERS:
+        fred_data = fetch_fred_data(list(FRED_TICKERS.values()))
+        data.update(fred_data)
+        
+    return data
 
 def get_returns_matrix(data: Dict[str, pd.DataFrame]) -> pd.DataFrame:
     """

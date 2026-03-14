@@ -40,6 +40,11 @@ YIELD_TICKERS = {
     'DXY': 'DX-Y.NYB'
 }
 
+FRED_TICKERS = {
+    'NZ10Y': 'IRLTLT01NZM156N',
+    'NZ_OCR': 'IRSTCI01NZM156N'
+}
+
 # Macro Filter Settings
 MAJORS_MACRO_ENABLE = True
 YIELD_THRESHOLD = 0.05  # Minimum bps change to consider it a "Macro Trend"
