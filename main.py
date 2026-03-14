@@ -52,7 +52,7 @@ class TradeTracker:
             
         # Check duration
         duration = datetime.now() - self.active_signals[ticker]
-        if ticker in ["CL=F", "GC=F"] and duration.total_seconds() > 4 * 3600:
+        if ticker in ["CL=F"] and duration.total_seconds() > 4 * 3600:
             return True # EXIT SIGNAL
         return False
 

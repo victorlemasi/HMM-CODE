@@ -90,7 +90,7 @@ ASSET_MAPPINGS = {
     'GBPAUD=X': {'type': 'macro', 'base': 'UK10Y', 'quote': 'AUD'},
     'GBPNZD=X': {'type': 'macro', 'base': 'UK10Y', 'quote': 'NZ10Y'},
     'AUDNZD=X': {'type': 'commodity', 'key': 'HG=F'},
-    'GC=F':     {'type': 'commodity', 'key': 'GOLD'}, # Technical only via hmm_analysis
+    'GC=F':     {'type': 'technical_only'}, 
     'CL=F':     {'type': 'commodity_inverse', 'key': 'DXY'}
 }
 
