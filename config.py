@@ -37,7 +37,8 @@ YIELD_TICKERS = {
     'US10Y': '^TNX',
     'UK10Y': 'GB10YT=RR',
     'GER10Y': 'DE10YT=RR',
-    'DXY': 'DX-Y.NYB'
+    'DXY': 'DX-Y.NYB',
+    'NZ10Y_LIVE': '^NZ10'
 }
 
 FRED_TICKERS = {

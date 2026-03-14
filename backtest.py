@@ -112,21 +112,35 @@ def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
         if current_dxy > 98.50 and dxy_change > 0:
             return "BEARISH_ONLY"
             
-        # --- RBNZ BIAS FILTER (Real Rates Automation) ---
+        # --- RBNZ BIAS FILTER (Live Rates Automation with Robust Fallback) ---
         # Blocks "Short NZD" if NZ yields are High/Hawkish.
-        nz_yield_df = macro_data.get('IRLTLT01NZM156N')
-        if nz_yield_df is not None and not nz_yield_df.empty:
-            nz_slice = nz_yield_df[nz_yield_df.index <= current_time]
-            if not nz_slice.empty:
-                current_nz_yield = nz_slice['Close'].iloc[-1]
-                # Hawkish Regime: Yield > 3.0% or 10-month momentum positive
-                is_hawkish = current_nz_yield > 3.0
-                
-                if "NZD" in ticker and is_hawkish:
-                    if ticker.startswith("NZD"):
-                        return "BULLISH_ONLY" # Block SHORT (Short NZD)
-                    else:
-                        return "BEARISH_ONLY" # Block LONG (Short NZD)
+        # Check Priority: 1. Live Yahoo (^NZ10), 2. FRED (Historical)
+        current_nz_yield = None
+        
+        # 1. Try Live Yahoo
+        live_df = macro_data.get('^NZ10')
+        if live_df is not None:
+            live_slice = live_df[live_df.index <= current_time]
+            if not live_slice.empty:
+                current_nz_yield = live_slice['Close'].iloc[-1]
+        
+        # 2. Try FRED Fallback (if live is missing for this period)
+        if current_nz_yield is None:
+            fred_df = macro_data.get('IRLTLT01NZM156N')
+            if fred_df is not None:
+                fred_slice = fred_df[fred_df.index <= current_time]
+                if not fred_slice.empty:
+                    current_nz_yield = fred_slice['Close'].iloc[-1]
+
+        if current_nz_yield is not None:
+            # Hawkish Regime: Yield > 3.0%
+            is_hawkish = current_nz_yield > 3.0
+            
+            if "NZD" in ticker and is_hawkish:
+                if ticker.startswith("NZD"):
+                    return "BULLISH_ONLY" # Block SHORT (Short NZD)
+                else:
+                    return "BEARISH_ONLY" # Block LONG (Short NZD)
 
         return "ALLOW"
     except Exception:
