@@ -202,6 +202,8 @@ def main():
         try:
             is_breakout, direction, regime, _, current_atr, prob = detect_breakout(df, ticker=pair, macro_data=macro_data)
             regime_results[pair] = regime
+            raw_direction = direction
+            veto_flag = False
             
             # --- APPLY MACRO WEIGHTING ---
             macro_weight = get_macro_weight(pair, direction, macro_data)
@@ -224,9 +226,11 @@ def main():
             if gatekeeper_status == "BEARISH_ONLY" and direction == "LONG":
                 print(f"  [VETO] {pair} LONG signal rejected: Macro Bias.")
                 direction = "None"
+                veto_flag = True
             elif gatekeeper_status == "BULLISH_ONLY" and direction == "SHORT":
                 print(f"  [VETO] {pair} SHORT signal rejected: Macro Bias.")
                 direction = "None"
+                veto_flag = True
             elif gatekeeper_status == "SCALP_ONLY" and pair == "CL=F":
                 print(f"  {pair} | WAR-TIME SCALP MODE: Tightening TP/SL.")
                 # Override TP/SL with 1:1 Risk/Reward
@@ -238,6 +242,7 @@ def main():
             if adjusted_prob < 0.6 and direction != "None":
                  print(f"  [VETO] {pair} Signal Rejected: Low Macro-Adjusted Confidence ({adjusted_prob:.2f})")
                  direction = "None"
+                 veto_flag = True
 
             # Calculate 1.2 Candle Trigger for Majors
             trigger = None
@@ -253,7 +258,10 @@ def main():
                 direction = "None"
                 breakout_directions[pair] = "EXIT"
             else:
-                breakout_directions[pair] = direction
+                if veto_flag and raw_direction != "None":
+                    breakout_directions[pair] = f"{raw_direction} (WARNING)"
+                else:
+                    breakout_directions[pair] = direction
 
             # Diagnostic: show current state
             msg = f"  {pair:<12} | Regime: {regime:<15} | Dir: {breakout_directions[pair]} | Conf: {adjusted_prob:.2f}"
