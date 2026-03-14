@@ -259,20 +259,20 @@ def main():
             elif regime == "Trend Breakout" and direction != "None":
                 trigger = get_trigger_price(df, regime, direction, current_atr, macro_phase="WIN_PHASE")
             
-            # --- TIME-BASED EXIT (WAR-TIME) ---
+            # --- FINAL SIGNAL TAGGING ---
+            # Priority: EXIT > SHOCK PAUSE > WARNING > NORMAL
             should_exit = tracker.update_signal(pair, direction)
             if should_exit:
-                print(f"  [EXIT] {pair} | 4-Hour Time Limit Exceeded. Recommending Exit.")
-                direction = "None"
                 breakout_directions[pair] = "EXIT"
+                direction = "None"
+            elif is_shock_paused and raw_direction != "None":
+                breakout_directions[pair] = f"{raw_direction} (SHOCK PAUSE)"
+                direction = "None"
+            elif veto_flag and raw_direction != "None":
+                breakout_directions[pair] = f"{raw_direction} (WARNING)"
+                direction = "None"
             else:
-                if is_shock_paused:
-                     direction = "None"
-                     breakout_directions[pair] = f"{raw_direction} (SHOCK PAUSE)" if raw_direction != "None" else "None"
-                elif veto_flag and raw_direction != "None":
-                    breakout_directions[pair] = f"{raw_direction} (WARNING)"
-                else:
-                    breakout_directions[pair] = direction
+                breakout_directions[pair] = direction
 
             # Diagnostic: show current state
             msg = f"  {pair:<12} | Regime: {regime:<15} | Dir: {breakout_directions[pair]} | Conf: {adjusted_prob:.2f}"
