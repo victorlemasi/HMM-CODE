@@ -10,30 +10,32 @@ A quantitative tool to scan multiple currency pairs using Clustering for asset g
 - **Dynamic ATR Thresholds**: Adaptive volatility filters that scale based on the asset type (FX vs Commodities).
 - **Geopolitical Risk (GPR) Overlay**: Integrates the Geopolitical Risk Index to adjust risk thresholds.
 - **Visualization**: Generates a correlation heatmap of the clusters.
-13: 
-14: ## Macro Intelligence (War-Time Strategy)
-15: 
-16: The scanner utilizes a "Macro-First" approach to filter technical signals based on global market conditions, specifically tuned for the volatile March 2026 environment.
-17: 
-18: ### 1. The Majors (EURUSD & GBPUSD)
-19: - **Yield Spread Momentum**: Blocks long signals if US 10-Year yields are rising faster than European/UK counterparts, anticipating USD dominance.
-20: - **DXY Velocity Switch**: A panic-mode filter that locks majors to "Bearish Only" if the US Dollar Index (DXY) spikes >0.25% in a single day.
-21: 
-22: ### 2. Gold (GC=F) — War_Scalp_4H
-23: - **Real Yield Filter**: Detects "Liquidity Traps" by blocking longs if yields (^TNX) and DXY are rising simultaneously.
-24: - **4-Hour Hard Exit**: Mandatory exit after 4 hours to capture geopolitical risk spikes while avoiding subsequent yield pressure reversals.
-25: 
-26: ### 3. Oil (CL=F) — Geopolitical Sensor
-27: - **DXY Stress Mode**: Automatically switches to "Scalp Mode" (1:1 Risk/Reward) if DXY > 100.50.
-28: - **Time-Decay Exit**: 4-hour hard exit limit to protect against "Strategic Reserve Release" flash gaps.
-29: - **Energy-Yen Correlation Filter**: Vetos "Long JPY" trades (Short USDJPY, EURJPY, etc.) if Oil ATR spikes > 2% in 4 hours.
-29: 
-30: ### 4. Global Risk Sensors
-31: - **DXY Master Pivot**: Defensive stance triggered if DXY crosses the 100.40 psychological wall.
-32: - **Brent Oil Gauge**: Tightens stops across the portfolio if Brent Crude exceeds $98/bbl.
-33: - **Sentiment Filter**: Integrates Real-time Fear & Greed sentiment to suppress reversal signals during extreme panic.
-- **RBNZ Bias Filter (Automated Carry Protection)**: Uses **FRED (St. Louis Fed)** data to fetch real NZ 10Y Yields (`IRLTLT01NZM156N`). If yields indicate a hawkish regime (>3.0%), the system automatically blocks high-cost "Short NZD" signals (e.g., Short NZDJPY) to avoid negative carry and capitalize on yield-attraction flows.
-34: 
+
+## Fundamental Gatekeepers (The Bouncer System)
+
+The scanner utilizes a "Macro-First" approach to filter technical signals. Every technical breakout is passed through the `Fundamental Gatekeeper` in `backtest.py` to ensure it aligns with global market regimes.
+
+### 1. Currency Gatekeepers
+| Filter | Logic | Trigger | Action |
+| :--- | :--- | :--- | :--- |
+| **DXY Velocity** | Inter-day Dollar strength | DXY > 100.40 OR Daily Spike > 0.25% | Blocks all **LONG** Majors (EUR, GBP, AUD) |
+| **RBNZ Bias** | Automated Carry Protection | NZ 10Y Yield > 3.0% (Hawkish) | Blocks **SHORT** NZD positions (e.g. NZDJPY Short) |
+| **Yield Spread Gate** | Base vs US Yield Momentum | Δ-Spread > 5bps (5-day window) | Blocks trades if spread moves against technical signal |
+| **Oil-JPY ATR** | Energy-driven Yen shocks | Oil ATR Spike > 2% (4-hour window) | Blocks **LONG JPY** positions (e.g. Short USDJPY) |
+
+### 2. Commodity Gatekeepers
+| Asset | Filter | Logic | Action |
+| :--- | :--- | :--- | :--- |
+| **Gold (GC=F)** | **Real Yield Trap** | DXY > 100.20 AND Yields Rising | Blocks Gold **LONGS** |
+| **Gold (GC=F)** | **Time Constraint** | Period > 4 Hours | **Hard Exit** (Capture geopolitical spikes only) |
+| **Oil (CL=F)** | **DXY Stress Mode** | DXY > 100.50 | Switches to **Scalp Mode** (1:1 Risk/Reward) |
+| **Oil (CL=F)** | **Energy Wall** | Brent Crude > $98/bbl | Portfolio-wide Stop tightening |
+
+### 3. Data Sources & Fallbacks
+To ensure the Bouncer always has data, we use a hybrid fetching system:
+- **Priority 1 (Live)**: Yahoo Finance Tickers (`^NZ10`, `^TNX`, `DX-Y.NYB`).
+- **Priority 2 (Proxies)**: Bond ETFs for UK/GER yields (`IGLT.L`, `IEGA.DE`) where direct yield tickers are unstable.
+- **Priority 3 (Historical)**: Direct **FRED CSV** downloads for robust backtesting coverage (e.g. `IRLTLT01NZM156N`).
 
 ## Installation
 
