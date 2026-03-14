@@ -124,39 +124,51 @@ def get_macro_weight(ticker: str, direction: str, macro_data: dict) -> float:
         
     from config import POLICY_RATE_TICKERS, ASSET_MAPPINGS
     
-    if ticker not in ASSET_MAPPINGS or ASSET_MAPPINGS[ticker]['type'] != 'macro':
+    if ticker not in ASSET_MAPPINGS:
         return 1.0
         
     mapping = ASSET_MAPPINGS[ticker]
-    base_currency = mapping['base_currency'] if 'base_currency' in mapping else ticker[:3]
-    quote_currency = mapping['quote_currency'] if 'quote_currency' in mapping else ticker[3:6]
+    m_type = mapping['type']
     
-    base_rate_ticker = POLICY_RATE_TICKERS.get(base_currency)
-    quote_rate_ticker = POLICY_RATE_TICKERS.get(quote_currency)
-    
-    if not base_rate_ticker or not quote_rate_ticker:
-        return 1.0
+    # --- TYPE 1: FX Macro (Policy Rate Differentials) ---
+    if m_type == 'macro':
+        base_currency = mapping['base_currency'] if 'base_currency' in mapping else ticker[:3]
+        quote_currency = mapping['quote_currency'] if 'quote_currency' in mapping else ticker[3:6]
         
-    base_df = macro_data.get(base_rate_ticker)
-    quote_df = macro_data.get(quote_rate_ticker)
-    
-    if base_df is None or quote_df is None or base_df.empty or quote_df.empty:
-        return 1.0
+        base_rate_ticker = POLICY_RATE_TICKERS.get(base_currency)
+        quote_rate_ticker = POLICY_RATE_TICKERS.get(quote_currency)
         
-    current_base = base_df['Close'].iloc[-1]
-    current_quote = quote_df['Close'].iloc[-1]
-    
-    # Hawkish Base + Dovish Quote = Bullish for Pair
-    # Direction check
-    if direction == "LONG":
-        if current_base > current_quote:
-            return 1.2
-        elif current_base < current_quote:
-            return 0.8
-    elif direction == "SHORT":
-        if current_base < current_quote:
-            return 1.2
-        elif current_base > current_quote:
-            return 0.8
+        if not base_rate_ticker or not quote_rate_ticker:
+            return 1.0
             
+        base_df = macro_data.get(base_rate_ticker)
+        quote_df = macro_data.get(quote_rate_ticker)
+        
+        if base_df is None or quote_df is None or base_df.empty or quote_df.empty:
+            return 1.0
+            
+        current_base = base_df['Close'].iloc[-1]
+        current_quote = quote_df['Close'].iloc[-1]
+        
+        # Hawkish Base + Dovish Quote = Bullish for Pair
+        if direction == "LONG":
+            if current_base > current_quote: return 1.2
+            elif current_base < current_quote: return 0.8
+        elif direction == "SHORT":
+            if current_base < current_quote: return 1.2
+            elif current_base > current_quote: return 0.8
+            
+    # --- TYPE 2: Inverse Commodity (e.g., Oil vs DXY) ---
+    elif m_type == 'commodity_inverse':
+        dxy_df = macro_data.get('DX-Y.NYB')
+        if dxy_df is not None and not dxy_df.empty:
+            # 5-bar momentum
+            if len(dxy_df) >= 5:
+                dxy_mom = dxy_df['Close'].iloc[-1] - dxy_df['Close'].iloc[-5]
+                # Strengthening DXY (mom > 0) is Bearish for Oil
+                if direction == "LONG":
+                    return 0.8 if dxy_mom > 0 else 1.2
+                elif direction == "SHORT":
+                    return 1.2 if dxy_mom > 0 else 0.8
+
     return 1.0

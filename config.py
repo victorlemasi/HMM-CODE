@@ -66,6 +66,11 @@ POLICY_RATE_TICKERS = {
 
 # 1-minute Watchdog Tickers
 WATCHDOG_TICKERS = ['EURUSD=X', 'GBPUSD=X', 'USDJPY=X', 'GC=F', 'CL=F']
+WATCHDOG_JUMP_THRESHOLDS = {
+    'CL=F': 4.5,   # Oil is more volatile, higher threshold
+    'GC=F': 3.5,   # Gold threshold
+    'DEFAULT': 3.0 # FX default
+}
 
 ASSET_MAPPINGS = {
     'AUDUSD=X': {'type': 'commodity', 'key': 'COPPER'},
@@ -73,7 +78,8 @@ ASSET_MAPPINGS = {
     'NZDUSD=X': {'type': 'commodity', 'key': 'GOLD'},
     'USDJPY=X': {'type': 'yield', 'key': 'US10Y'},
     'EURUSD=X': {'type': 'macro', 'base': 'GER10Y', 'quote': 'US10Y'},
-    'GBPUSD=X': {'type': 'macro', 'base': 'UK10Y', 'quote': 'US10Y'}
+    'GBPUSD=X': {'type': 'macro', 'base': 'UK10Y', 'quote': 'US10Y'},
+    'CL=F':     {'type': 'commodity_inverse', 'key': 'DXY'} # Oil inverse to Dollar
 }
 
 # 1.2 Candle Logic for Majors

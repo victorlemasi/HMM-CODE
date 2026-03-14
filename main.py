@@ -25,12 +25,16 @@ class JumpWatchdog:
         if self.paused_until and datetime.now() < self.paused_until:
             return True
             
+        from config import WATCHDOG_JUMP_THRESHOLDS
         print("\n--- Running 1-Minute Jump Watchdog ---")
         wd_data = fetch_watchdog_data(self.tickers)
         for ticker, df in wd_data.items():
             z_score = calculate_z_score(df['Close'])
-            if abs(z_score) > 3.0:
-                print(f"!!! JUMP DETECTED on {ticker} (Z-Score: {z_score:.2f}) !!!")
+            # Use specific threshold or fallback to DEFAULT
+            threshold = WATCHDOG_JUMP_THRESHOLDS.get(ticker, WATCHDOG_JUMP_THRESHOLDS['DEFAULT'])
+            
+            if abs(z_score) > threshold:
+                print(f"!!! JUMP DETECTED on {ticker} (Z-Score: {z_score:.2f} | Limit: {threshold}) !!!")
                 print("ACTION: Pausing all trading operations for 15 minutes.")
                 self.paused_until = datetime.now() + timedelta(minutes=15)
                 return True
