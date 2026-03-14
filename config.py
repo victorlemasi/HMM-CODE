@@ -35,11 +35,8 @@ COMMODITY_TICKERS = {
 }
 YIELD_TICKERS = {
     'US10Y': '^TNX',
-    'GER10Y': 'DE10YT=RR',
     'DXY': 'DX-Y.NYB',
-    'NZ10Y_LIVE': '^NZ10',
-    'UK10Y_PROXY': 'IGLT.L',
-    'GER10Y_PROXY': 'IEGA.DE'
+    'NZ10Y_LIVE': '^NZ10'
 }
 
 FRED_TICKERS = {
@@ -79,7 +76,11 @@ ASSET_MAPPINGS = {
     'USDJPY=X': {'type': 'yield', 'key': 'US10Y'},
     'EURUSD=X': {'type': 'macro', 'base': 'GER10Y', 'quote': 'US10Y'},
     'GBPUSD=X': {'type': 'macro', 'base': 'UK10Y', 'quote': 'US10Y'},
-    'CL=F':     {'type': 'commodity_inverse', 'key': 'DXY'} # Oil inverse to Dollar
+    'CL=F':     {'type': 'commodity_inverse', 'key': 'DXY'},
+    'EURGBP=X': {'type': 'macro', 'base': 'GER10Y', 'quote': 'UK10Y'},
+    'EURNZD=X': {'type': 'macro', 'base': 'GER10Y', 'quote': 'NZ10Y'},
+    'GBPNZD=X': {'type': 'macro', 'base': 'UK10Y', 'quote': 'NZ10Y'},
+    'CHFJPY=X': {'type': 'yield', 'key': 'US10Y'}
 }
 
 # 1.2 Candle Logic for Majors

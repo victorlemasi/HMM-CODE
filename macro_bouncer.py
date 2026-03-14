@@ -122,7 +122,7 @@ def get_macro_weight(ticker: str, direction: str, macro_data: dict) -> float:
     if macro_data is None or direction == "None":
         return 1.0
         
-    from config import POLICY_RATE_TICKERS, ASSET_MAPPINGS
+    from config import POLICY_RATE_TICKERS, ASSET_MAPPINGS, COMMODITY_TICKERS, YIELD_TICKERS
     
     if ticker not in ASSET_MAPPINGS:
         return 1.0
@@ -162,13 +162,39 @@ def get_macro_weight(ticker: str, direction: str, macro_data: dict) -> float:
     elif m_type == 'commodity_inverse':
         dxy_df = macro_data.get('DX-Y.NYB')
         if dxy_df is not None and not dxy_df.empty:
-            # 5-bar momentum
             if len(dxy_df) >= 5:
                 dxy_mom = dxy_df['Close'].iloc[-1] - dxy_df['Close'].iloc[-5]
-                # Strengthening DXY (mom > 0) is Bearish for Oil
                 if direction == "LONG":
                     return 0.8 if dxy_mom > 0 else 1.2
                 elif direction == "SHORT":
                     return 1.2 if dxy_mom > 0 else 0.8
+
+    # --- TYPE 3: Direct Commodity (e.g., AUDUSD vs Copper) ---
+    elif m_type == 'commodity':
+        com_key = mapping['key']
+        com_ticker = COMMODITY_TICKERS.get(com_key)
+        com_df = macro_data.get(com_ticker)
+        if com_df is not None and not com_df.empty:
+            if len(com_df) >= 5:
+                com_mom = com_df['Close'].iloc[-1] - com_df['Close'].iloc[-5]
+                # Positive momentum in commodity is Bullish for the currency
+                if direction == "LONG":
+                    return 1.2 if com_mom > 0 else 0.8
+                elif direction == "SHORT":
+                    return 0.8 if com_mom > 0 else 1.2
+
+    # --- TYPE 4: Pure Yield (e.g., USDJPY vs 10Y) ---
+    elif m_type == 'yield':
+        yield_key = mapping['key']
+        yield_ticker = YIELD_TICKERS.get(yield_key)
+        yield_df = macro_data.get(yield_ticker)
+        if yield_df is not None and not yield_df.empty:
+            if len(yield_df) >= 5:
+                y_mom = yield_df['Close'].iloc[-1] - yield_df['Close'].iloc[-5]
+                # Rising yield is Bullish for the currency
+                if direction == "LONG":
+                    return 1.2 if y_mom > 0 else 0.8
+                elif direction == "SHORT":
+                    return 0.8 if y_mom > 0 else 1.2
 
     return 1.0
