@@ -179,10 +179,11 @@ def main():
     print("\n=== Currency Pair Analysis Pipeline ===")
     
     # --- JUMP WATCHDOG CHECK ---
-    if watchdog.check_for_jumps():
+    is_shock_paused = watchdog.check_for_jumps()
+    if is_shock_paused:
         rem = watchdog.get_remaining_pause_minutes()
-        print(f"Trading paused due to market shock. Resuming in {rem} minutes.")
-        return
+        print(f"!!! WARNING: Trading paused (Market Shock). Resuming in {rem} minutes. !!!")
+        print("!!! Analysis shown for INFORMATION ONLY. Automated trading BLOCKED. !!!")
 
     data = fetch_data(CURRENCY_PAIRS, INTERVAL, PERIOD)
     
@@ -265,7 +266,10 @@ def main():
                 direction = "None"
                 breakout_directions[pair] = "EXIT"
             else:
-                if veto_flag and raw_direction != "None":
+                if is_shock_paused:
+                     direction = "None"
+                     breakout_directions[pair] = f"{raw_direction} (SHOCK PAUSE)" if raw_direction != "None" else "None"
+                elif veto_flag and raw_direction != "None":
                     breakout_directions[pair] = f"{raw_direction} (WARNING)"
                 else:
                     breakout_directions[pair] = direction
