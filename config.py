@@ -70,17 +70,28 @@ WATCHDOG_JUMP_THRESHOLDS = {
 }
 
 ASSET_MAPPINGS = {
+    'EURUSD=X': {'type': 'macro', 'base': 'GER10Y', 'quote': 'US10Y'},
+    'GBPUSD=X': {'type': 'macro', 'base': 'UK10Y', 'quote': 'US10Y'},
+    'USDJPY=X': {'type': 'yield', 'key': 'US10Y'},
+    'USDCHF=X': {'type': 'yield', 'key': 'US10Y'},
     'AUDUSD=X': {'type': 'commodity', 'key': 'COPPER'},
     'USDCAD=X': {'type': 'commodity', 'key': 'OIL'},
     'NZDUSD=X': {'type': 'commodity', 'key': 'GOLD'},
-    'USDJPY=X': {'type': 'yield', 'key': 'US10Y'},
-    'EURUSD=X': {'type': 'macro', 'base': 'GER10Y', 'quote': 'US10Y'},
-    'GBPUSD=X': {'type': 'macro', 'base': 'UK10Y', 'quote': 'US10Y'},
-    'CL=F':     {'type': 'commodity_inverse', 'key': 'DXY'},
     'EURGBP=X': {'type': 'macro', 'base': 'GER10Y', 'quote': 'UK10Y'},
+    'EURJPY=X': {'type': 'macro', 'base': 'GER10Y', 'quote': 'JPY'}, # JPY proxy via Policy Rates
+    'GBPJPY=X': {'type': 'macro', 'base': 'UK10Y', 'quote': 'JPY'},
+    'EURCHF=X': {'type': 'macro', 'base': 'GER10Y', 'quote': 'US10Y'},
+    'GBPCHF=X': {'type': 'macro', 'base': 'UK10Y', 'quote': 'US10Y'},
+    'AUDJPY=X': {'type': 'commodity', 'key': 'HG=F'},
+    'NZDJPY=X': {'type': 'commodity', 'key': 'GC=F'},
+    'CHFJPY=X': {'type': 'yield', 'key': 'US10Y'},
+    'EURAUD=X': {'type': 'macro', 'base': 'GER10Y', 'quote': 'AUD'},
     'EURNZD=X': {'type': 'macro', 'base': 'GER10Y', 'quote': 'NZ10Y'},
+    'GBPAUD=X': {'type': 'macro', 'base': 'UK10Y', 'quote': 'AUD'},
     'GBPNZD=X': {'type': 'macro', 'base': 'UK10Y', 'quote': 'NZ10Y'},
-    'CHFJPY=X': {'type': 'yield', 'key': 'US10Y'}
+    'AUDNZD=X': {'type': 'commodity', 'key': 'HG=F'},
+    'GC=F':     {'type': 'commodity', 'key': 'GOLD'}, # Technical only via hmm_analysis
+    'CL=F':     {'type': 'commodity_inverse', 'key': 'DXY'}
 }
 
 # 1.2 Candle Logic for Majors
