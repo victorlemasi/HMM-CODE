@@ -129,6 +129,16 @@ def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = Non
                 # We use -DXY as the feature because stronger DXY -> lower EURUSD/GBPUSD
                 df['Spec_Feat'] = -dxy_aligned['Close']
                 features_cols.append('Spec_Feat')
+        
+        elif m_type == 'commodity_inverse':
+            dxy_ticker = YIELD_TICKERS.get('DXY')
+            if dxy_ticker in macro_data and not macro_data[dxy_ticker].empty:
+                dxy_df = macro_data[dxy_ticker].copy()
+                dxy_df.index = dxy_df.index.tz_localize(None) if dxy_df.index.tz else dxy_df.index
+                dxy_aligned = dxy_df.reindex(price_idx, method='ffill').bfill()
+                # Oil is inversely correlated to DXY
+                df['Spec_Feat'] = -dxy_aligned['Close']
+                features_cols.append('Spec_Feat')
 
     df = df.dropna()
     

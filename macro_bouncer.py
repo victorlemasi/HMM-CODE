@@ -45,7 +45,8 @@ def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
         # --- OIL OVERRIDE ---
         if ticker == "CL=F":
             if current_dxy > 100.50:
-                return "SCALP_ONLY"
+                # If DXY is extremely strong, it's Bearish ONLY, even if scalping
+                return "BEARISH_ONLY" if current_dxy > 100.70 else "SCALP_ONLY"
 
         # --- OIL-JPY CORRELATION FILTER ---
         if ticker.endswith("JPY=X"):
