@@ -1,108 +1,57 @@
-# Currency Pair Scanner & Analysis
+# Currency Pair Scanner & Analysis (War-Time Edition)
 
-A quantitative tool to scan multiple currency pairs using Clustering for asset grouping and Hidden Markov Models (HMM) for breakout state detection.
+A high-sophistication quantitative scanner designed for the volatility of the 2026 market regime. It uses multi-dimensional Hidden Markov Models (HMM), Macro-Economic Filtering (FRED), and Multi-Variate Jump Detection to identify and trade high-conviction breakout regimes.
 
-## Features
-- **Data Acquisition**: Fetches 70 days of hourly historical data via `yfinance`.
-- **Clustering**: Groups assets with similar price action using Hierarchical Clustering.
-- **Breakout Detection**: Uses a 3-state Gaussian HMM (Consolidation, Mean Reversion, Trend Breakout) for regime detection.
-- **Daily Retraining**: Automatically fits a new model every 24 hours (or per run) using a 1,200-bar "Goldilocks" window to stay relevant to current market conditions.
-- **Dynamic ATR Thresholds**: Adaptive volatility filters that scale based on the asset type (FX vs Commodities).
-- **Geopolitical Risk (GPR) Overlay**: Integrates the Geopolitical Risk Index to adjust risk thresholds.
-- **Visualization**: Generates a correlation heatmap of the clusters.
+## 🚀 Key Features
 
-## Stochastic Logic & Macro Framework
+- **War-Time Asset Strategy**: Treats Gold (`GC=F`) and Oil (`CL=F`) as "War Sensors" with unique safety filters and extended holding periods.
+- **4-State HMM (Gold)**: Advanced state separation for Gold to isolate standard trends from explosive "Safe Haven Spikes."
+- **Mahalanobis Jump Watchdog**: Multi-dimensional safety layer monitoring Price, Volatility, and Macro spreads to detect structural market shocks.
+- **Volatility Squeeze Filter (EURUSD)**: Bollinger Band Width contraction requirements to filter "efficiency traps" in major pairs.
+- **Real Yield (TIPS) Overlay**: Fundamental filtering for Gold longs based on 10-Year Real Interest Rates (FRED: `DFII10`).
+- **Robust Stochastic Logic**: All statistical calculations (Z-Scores, Regimes) use Median Absolute Deviation (MAD) for resilience against fat-tailed financial distributions.
+- **Regime-Shift Protection**: Automatic "Flatten" logic in the backtester/exec engine when HMM detects a transition out of tradeable states.
 
-The scanner has transitioned from Static Logic to **Stochastic/Adaptive Logic**, allowing it to handle market shocks and macro-economic regime shifts.
+## 🧠 Sophisticated Logic Framework
 
-### 1. Jump-Diffusion Watchdog (Lévy Process)
-A high-frequency 1-minute "Watchdog" monitors market shocks in real-time.
-- **Circuit Breaker**: If price moves > 3-4.5 Standard Deviations (Z-Score) in 1 minute, the bot pauses all trading for 15 minutes.
-- **Asset Specificity**: Thresholds are calibrated by asset (FX: 3.0, Gold: 3.5, Oil: 4.5) to account for natural volatility.
+### 1. The Fundamental Bouncer (Macro Gatekeeper)
+Every technical signal must pass a series of global fundamental checks:
+- **DXY Wall**: Prevents Longs in major currencies and Commodities if the US Dollar Index is in an aggressive trend.
+- **Yield Spread Momentum**: Forces alignment with base symbol interest rate momentum (10Y Yield shifts).
+- **RBNZ/CB Bias**: Automated hawkish/dovish scoring for commodity currencies (AUD, NZD) using policy rate data.
 
-### 2. Macro-Weighted Confidence
-Technical signals from the HMM are weighted by multi-dimensional macro factors before execution:
-- **Policy Rate Differentials**: Signal confidence is boosted (+20%) or penalized (-20%) based on Central Bank hawkishness/dovishness (FRED Data).
-- **DXY Inverse Coupling**: Oil (`CL=F`) signals are weighted against US Dollar momentum to avoid "Macro Traps."
-- **Confidence Threshold**: Any signal with an adjusted probability < 0.6 is automatically vetoed (labeled with ⚠️ in output).
+### 2. Bayesian Confidence Weighting
+Technical HMM probabilities are adjusted by **Macro Momentum**:
+- **Confidence Threshold**: 0.70 (Post-Adjustment).
+- **Policy Differentials**: Signals are weighted by the interest rate carry advantage of the base currency.
 
-### 3. Data Sources (FRED & Yahoo Hybrid)
-We use a robust fetching architecture to bypass Yahoo Finance yield instability:
-- **Central Bank Rates (FRED)**: `FEDFUNDS` (USD), `ECBMRRFR` (EUR), `IRSTCI01JPM156N` (JPY), etc.
-- **10Y Yields (FRED)**: `IRLTLT01DEM156N` (GER), `IRLTLT01GBM156N` (UK), `IRLTLT01NZM156N` (NZ).
-- **Technical/Volatility (Yahoo)**: 1h price bars for technical clustering and HMM modeling.
+### 3. Integrated Watchdog (Circuit Breakers)
+- **1-Minute Pulse**: Real-time monitoring of jumps (> 3.5 MAD sigma).
+- **15-Minute Cooldown**: Automatic trading pause on detection of idiosyncratic shocks.
 
-## Installation
+## 🛠️ Installation & Setup
 
-1. **Clone the repository** (if applicable) or navigate to the project directory.
-
-2. **Set up a Virtual Environment (Recommended)**:
-   We recommend using Python 3.12 to avoid compilation issues with `hmmlearn`.
+1. **Environment**: Recommended Python 3.12 (for `hmmlearn` stability).
+2. **Setup**:
    ```powershell
-   # Use the Python Launcher to specify version 3.12
-   py -3.12 -m venv .venv312
-   .\.venv312\Scripts\Activate.ps1
-   ```
-
-3. **Install Dependencies**:
-   ```powershell
+   py -3.12 -m venv .venv
+   .\.venv\Scripts\Activate.ps1
    pip install -r requirements.txt
    ```
+3. **Data Requirements**: Requires internet access to `yfinance` and `FRED` (St. Louis Fed) CSV exports.
 
-## Usage
+## 📈 Usage
 
-1. **Activate the virtual environment**:
-   ```powershell
-   .\.venv312\Scripts\Activate.ps1
-   ```
+- **Live Scanner**: `python main.py` (Real-time regime detection + Tracking).
+- **Architecture Backtest**: `python backtest.py` (Full 22-pair simulation with War-Time overrides).
 
-2. **Run the analysis**:
-   ```powershell
-   python main.py
-   ```
+## 📁 Output Artifacts
+- `backtest_results.csv`: Comprehensive metrics (Sharpe, Drawdown, Profit Factor).
+- `correlation_clusters.png`: Visual mapping of current market integration.
+- `backtest_trade_log.csv`: Per-trade breakdown of entry/exit reasons (incl. SL, TP, Time-Exit, and Regime-Shift).
 
-## Training
-
-The HMM model is designed for **Daily Retraining** to prevent model drift.
-
-### Automatic Training
-The training process is fully automated. Every time you run `python main.py`:
-1.  The scanner fetches the last 70 days of hourly data.
-2.  It slices the data to the most recent **1,200 hourly bars** (approx. 2 months).
-3.  A new Gaussian HMM is fitted to this data for each currency pair.
-
-### Manual Retraining / Backtesting
-To evaluate the model's training performance on historical data, run the walk-forward backtester:
-```powershell
-python backtest.py
-```
-This script simulates the daily retraining process over 6 months of historical data.
-
-## Troubleshooting
-
-### `hmmlearn` Installation Error
-If you see an error like `Microsoft Visual C++ 14.0 or greater is required` when installing `hmmlearn`, it means there is no pre-built binary wheel for your Python version (likely Python 3.13 or 3.14), and `pip` is trying to compile it from source.
-
-**Recommended Fixes:**
-1. **Use Python 3.12**: This is the most stable version for data science libraries. Pre-built wheels are available, so you won't need to compile anything.
-   - Create a new environment with Python 3.12: `python3.12 -m venv .venv`
-2. **Install Microsoft C++ Build Tools**:
-   - Download them from [here](https://visualstudio.microsoft.com/visual-cpp-build-tools/).
-   - Select "Desktop development with C++" during installation.
-3. **Try a pre-built wheel**:
-   - For some versions, you might find a wheel on [conda-forge](https://anaconda.org/conda-forge/hmmlearn) if you use Conda.
-
-### `xlrd` Missing Dependency
-If you see an error like `Missing optional dependency 'xlrd'`, ensure you have installed all requirements:
-```powershell
-pip install xlrd
-```
-This is required for reading the Geopolitical Risk data in Excel format.
-
-## Output
-- `correlation_clusters.png`: A heatmap showing the correlation between currency pairs, ordered by clusters.
-- `analysis_summary.csv`: A CSV file containing the cluster ID and the HMM state (BREAKOUT or Normal) for each pair.
-- Console output: Detailed summary of the scan results.
-
-## Configuration
-You can modify `config.py` to change the list of currency pairs, the timeframe (`INTERVAL`, `PERIOD`), or the model parameters (`N_CLUSTERS`, `HMM_COMPONENTS`).
+## ⚙️ Configuration
+Modify `config.py` to adjust:
+- `ASSET_N_COMPONENTS`: Per-asset HMM state counts.
+- `ATR_MULTIPLIER_FX / GOLD`: Sensitivity of regime transition guards.
+- `BB_SQUEEZE_THRESHOLD`: Volatility contraction requirements.
