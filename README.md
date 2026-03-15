@@ -1,46 +1,41 @@
-# Stochastic Trading Bot & Macro Scanner
+# Currency Pair Scanner & Analysis
 
-An advanced quantitative trading bot that blends **Hidden Markov Models (HMM)** for regime detection with a **Fundamental Gatekeeper (The Bouncer)** for macro-economic alignment. Optimized for 22 instruments including Majors, Crosses, Gold, and Oil.
+A quantitative tool to scan multiple currency pairs using Clustering for asset grouping and Hidden Markov Models (HMM) for breakout state detection.
 
-## 🚀 Key Features
+## Features
+- **Data Acquisition**: Fetches 70 days of hourly historical data via `yfinance`.
+- **Clustering**: Groups assets with similar price action using Hierarchical Clustering.
+- **Breakout Detection**: Uses a 3-state Gaussian HMM (Consolidation, Mean Reversion, Trend Breakout) for regime detection.
+- **Daily Retraining**: Automatically fits a new model every 24 hours (or per run) using a 1,200-bar "Goldilocks" window to stay relevant to current market conditions.
+- **Dynamic ATR Thresholds**: Adaptive volatility filters that scale based on the asset type (FX vs Commodities).
+- **Geopolitical Risk (GPR) Overlay**: Integrates the Geopolitical Risk Index to adjust risk thresholds.
+- **Visualization**: Generates a correlation heatmap of the clusters.
 
-### 1. Stochastic Regime Logic
-- **HMM Breakout Detection**: Uses a 3-state Gaussian HMM (Consolidation, Mean Reversion, Trend Breakout) with a **0.6 Confidence Threshold**.
-- **Dynamic Confidence Weighting**: Signals are weighted by central bank policy rate differentials and yield spread momentum.
-- **Detailed Signal Warnings**: Signals rejected by the gatekeeper are now tagged with the specific reason (e.g., `SHORT (WARNING: Macro Bias)` or `LONG (WARNING: Low Confidence)`).
-- **Statistical Separation Guard**: Rejects weak breakouts if the regime's return separation is less than **0.2x ATR (Gold)** or **0.15x ATR (FX)**.
+## Fundamental Gatekeepers (The Bouncer System)
 
-### 2. The "Jump-Diffusion" Watchdog
-- **1-Minute Circuit Breaker**: Polls high-volatility assets every 60 seconds.
-- **Lévy Process Filter**: Uses Z-Score analysis to detect market shocks (>3-4.5 SD).
-- **Persistent Pause**: Automatically locks trading for 15 minutes via `watchdog_pause.lock` during shocks.
+The scanner utilizes a "Macro-First" approach to filter technical signals. Every technical breakout is passed through the `Fundamental Gatekeeper` in `backtest.py` to ensure it aligns with global market regimes.
 
-### 3. "War-Time" Strategy Overrides
-- **Oil (CL=F)**: Uses DXY-inverse momentum and a **Hard 4-Hour Time Exit** to avoid gap risk.
-- **Gold (GC=F)**: Restore Benchmark (+4.72% Verified). Exempt from time limits to allow structural trends to breathe. Uses **DXY as an internal HMM feature**.
-- **Scalp Mode**: Automatically tightens Stop Loss and Take Profit to a **1:1 ratio** when the DXY is in a "Neutral Danger Zone."
+### 1. Currency Gatekeepers
+| Filter | Logic | Trigger | Action |
+| :--- | :--- | :--- | :--- |
+| **DXY Velocity** | Inter-day Dollar strength | DXY > 100.40 OR Daily Spike > 0.25% | Blocks all **LONG** Majors (EUR, GBP, AUD) |
+| **RBNZ Bias** | Automated Carry Protection | NZ 10Y Yield > 3.0% (Hawkish) | Blocks **SHORT** NZD positions (e.g. NZDJPY Short) |
+| **Yield Spread Gate** | Base vs US Yield Momentum | Δ-Spread > 5bps (5-day window) | Blocks trades if spread moves against technical signal |
+| **Oil-JPY ATR** | Energy-driven Yen shocks | Oil ATR Spike > 2% (4-hour window) | Blocks **LONG JPY** positions (e.g. Short USDJPY) |
 
-### 4. FRED Data Unification
-- **Zero-Lag Macro**: Fetches yields (UK, GER, US) and Policy Rates (NZ, UK, US, EUR) directly from **FRED** for maximum reliability.
-- **Spread Momentum**: Analyzes 10Y yield spreads to distinguish "Win Phases" from "Macro Traps."
+### 2. Commodity Gatekeepers
+| Asset | Filter | Logic | Action |
+| :--- | :--- | :--- | :--- |
+| **Gold (GC=F)** | **Real Yield Trap** | DXY > 100.20 AND Yields Rising | Blocks Gold **LONGS** |
+| **Gold (GC=F)** | **Time Constraint** | Period > 4 Hours | **Hard Exit** (Capture geopolitical spikes only) |
+| **Oil (CL=F)** | **DXY Stress Mode** | DXY > 100.50 | Switches to **Scalp Mode** (1:1 Risk/Reward) |
+| **Oil (CL=F)** | **Energy Wall** | Brent Crude > $98/bbl | Portfolio-wide Stop tightening |
 
-## 📈 Audited Performance (6-Month Walk-Forward)
-| Asset | Trades | Total Return % | Win Rate % | Sharpe |
-| :--- | :--- | :--- | :--- | :--- |
-| **GC=F (Gold)** | 3 | **+4.72%** | **66.7%** | 15.30 |
-| **EURUSD=X** | 1 | **+0.45%** | 100.0% | 0.00 |
-| **GBPUSD=X** | 1 | **+0.11%** | 100.0% | 0.00 |
-| **CL=F (Oil)** | 9 | **+2.18%** | 77.8% | 17.47 |
-
-## 📁 System Files
-- `watchdog_pause.lock`: Persistent timestamp for jump-detection pauses.
-- `trade_tracker.json`: Tracks signal duration for the 4-hour Oil exit.
-- `macro_bouncer.py`: The global hybrid gatekeeper logic for all 22 assets.
-- `hmm_analysis.py`: Core machine learning and ATR-based filtering.
-
-## 🛠️ Usage
-1. **Live Scanner**: `python main.py` (Retrains models every 24 hours).
-2. **Backtester**: `python backtest.py` (Runs 6-month walk-forward simulation).
+### 3. Data Sources & Fallbacks
+To ensure the Bouncer always has data, we use a hybrid fetching system:
+- **Priority 1 (Live)**: Yahoo Finance Tickers (`^NZ10`, `^TNX`, `DX-Y.NYB`).
+- **Priority 2 (Proxies)**: Bond ETFs for UK/GER yields (`IGLT.L`, `IEGA.DE`) where direct yield tickers are unstable.
+- **Priority 3 (Historical)**: Direct **FRED CSV** downloads for robust backtesting coverage (e.g. `IRLTLT01NZM156N`).
 
 ## Installation
 

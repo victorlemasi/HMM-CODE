@@ -112,8 +112,8 @@ def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None
 
             # If we had a position, check for exit
             if position != 0:
-                # --- WAR-TIME OVERRIDE: 4-Hour Time Limit for OIL ONLY ---
-                if (ticker == "CL=F") and (sub_t - entry_bar_idx) >= 4:
+                # --- WAR-TIME OVERRIDE: 4-Hour Time Limit for OIL & GOLD ---
+                if (ticker == "CL=F" or ticker == "GC=F") and (sub_t - entry_bar_idx) >= 4:
                     exit_reason = "TIME_EXIT"
                     exit_price = close
                     raw_ret = position * (exit_price / entry_price - 1)
@@ -187,7 +187,7 @@ def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None
 
     if not trades:
         return {'ticker': ticker, 'trades': 0, 'total_return': 0,
-                'win_rate': 0, 'max_drawdown': 0, 'sharpe': 0, 'trade_log': pd.DataFrame()}
+                'win_rate': 0, 'max_drawdown': 0, 'sharpe': 0}
 
     df_trades = pd.DataFrame(trades)
     returns = df_trades['Net_Return'].values

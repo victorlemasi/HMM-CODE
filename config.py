@@ -1,9 +1,11 @@
+# List of 20 major and minor currency pairs
 CURRENCY_PAIRS = [
     'EURUSD=X', 'GBPUSD=X', 'USDJPY=X', 'USDCHF=X', 'AUDUSD=X',
     'USDCAD=X', 'NZDUSD=X', 'EURGBP=X', 'EURJPY=X', 'GBPJPY=X',
     'EURCHF=X', 'GBPCHF=X', 'AUDJPY=X', 'NZDJPY=X', 'CHFJPY=X',
     'EURAUD=X', 'EURNZD=X', 'GBPAUD=X', 'GBPNZD=X', 'AUDNZD=X',
-    'GC=F', 'CL=F'
+    'GC=F',   # Gold Futures (Safe Haven)
+    'CL=F'    # Crude Oil (Geopolitical Context)
 ]
 
 # Timeframe for analysis
@@ -33,8 +35,11 @@ COMMODITY_TICKERS = {
 }
 YIELD_TICKERS = {
     'US10Y': '^TNX',
+    'GER10Y': 'DE10YT=RR',
     'DXY': 'DX-Y.NYB',
-    'NZ10Y_LIVE': '^NZ10'
+    'NZ10Y_LIVE': '^NZ10',
+    'UK10Y_PROXY': 'IGLT.L',
+    'GER10Y_PROXY': 'IEGA.DE'
 }
 
 FRED_TICKERS = {
@@ -68,28 +73,13 @@ WATCHDOG_JUMP_THRESHOLDS = {
 }
 
 ASSET_MAPPINGS = {
-    'EURUSD=X': {'type': 'macro', 'base': 'GER10Y', 'quote': 'US10Y'},
-    'GBPUSD=X': {'type': 'macro', 'base': 'UK10Y', 'quote': 'US10Y'},
-    'USDJPY=X': {'type': 'yield', 'key': 'US10Y'},
-    'USDCHF=X': {'type': 'yield', 'key': 'US10Y'},
     'AUDUSD=X': {'type': 'commodity', 'key': 'COPPER'},
     'USDCAD=X': {'type': 'commodity', 'key': 'OIL'},
     'NZDUSD=X': {'type': 'commodity', 'key': 'GOLD'},
-    'EURGBP=X': {'type': 'macro', 'base': 'GER10Y', 'quote': 'UK10Y'},
-    'EURJPY=X': {'type': 'macro', 'base': 'GER10Y', 'quote': 'JPY'}, # JPY proxy via Policy Rates
-    'GBPJPY=X': {'type': 'macro', 'base': 'UK10Y', 'quote': 'JPY'},
-    'EURCHF=X': {'type': 'macro', 'base': 'GER10Y', 'quote': 'US10Y'},
-    'GBPCHF=X': {'type': 'macro', 'base': 'UK10Y', 'quote': 'US10Y'},
-    'AUDJPY=X': {'type': 'commodity', 'key': 'HG=F'},
-    'NZDJPY=X': {'type': 'commodity', 'key': 'GC=F'},
-    'CHFJPY=X': {'type': 'yield', 'key': 'US10Y'},
-    'EURAUD=X': {'type': 'macro', 'base': 'GER10Y', 'quote': 'AUD'},
-    'EURNZD=X': {'type': 'macro', 'base': 'GER10Y', 'quote': 'NZ10Y'},
-    'GBPAUD=X': {'type': 'macro', 'base': 'UK10Y', 'quote': 'AUD'},
-    'GBPNZD=X': {'type': 'macro', 'base': 'UK10Y', 'quote': 'NZ10Y'},
-    'AUDNZD=X': {'type': 'commodity', 'key': 'HG=F'},
-    'GC=F':     {'type': 'technical_only'}, 
-    'CL=F':     {'type': 'commodity_inverse', 'key': 'DXY'}
+    'USDJPY=X': {'type': 'yield', 'key': 'US10Y'},
+    'EURUSD=X': {'type': 'macro', 'base': 'GER10Y', 'quote': 'US10Y'},
+    'GBPUSD=X': {'type': 'macro', 'base': 'UK10Y', 'quote': 'US10Y'},
+    'CL=F':     {'type': 'commodity_inverse', 'key': 'DXY'} # Oil inverse to Dollar
 }
 
 # 1.2 Candle Logic for Majors

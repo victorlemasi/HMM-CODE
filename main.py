@@ -16,69 +16,11 @@ from sentiment_fetcher import fetch_market_sentiment
 from rebalancer import diversify_signals, find_correlation_hedges, get_exit_recommendations
 from macro_bouncer import check_fundamental_gatekeeper, get_macro_weight
 
-class TradeTracker:
-    def __init__(self, filename="trade_tracker.json"):
-        self.filename = filename
-        self.active_signals = self._load()
-        
-    def _load(self):
-        import os, json
-        if os.path.exists(self.filename):
-            with open(self.filename, 'r') as f:
-                try: 
-                    data = json.load(f)
-                    # Convert strings back to datetimes
-                    return {k: datetime.fromisoformat(v) for k, v in data.items()}
-                except: return {}
-        return {}
-        
-    def _save(self):
-        import json
-        with open(self.filename, 'w') as f:
-            data = {k: v.isoformat() for k, v in self.active_signals.items()}
-            json.dump(data, f)
-            
-    def update_signal(self, ticker, direction):
-        if direction == "None":
-            if ticker in self.active_signals:
-                del self.active_signals[ticker]
-                self._save()
-            return False
-            
-        if ticker not in self.active_signals:
-            self.active_signals[ticker] = datetime.now()
-            self._save()
-            return False
-            
-        # Check duration
-        duration = datetime.now() - self.active_signals[ticker]
-        if ticker in ["CL=F"] and duration.total_seconds() > 4 * 3600:
-            return True # EXIT SIGNAL
-        return False
-
 class JumpWatchdog:
     def __init__(self, tickers):
         self.tickers = tickers
-        self.lock_file = "watchdog_pause.lock"
-        self.paused_until = self._load_pause()
+        self.paused_until = None
         
-    def _load_pause(self):
-        import os
-        if os.path.exists(self.lock_file):
-            with open(self.lock_file, 'r') as f:
-                try:
-                    ts = float(f.read().strip())
-                    dt = datetime.fromtimestamp(ts)
-                    if dt > datetime.now():
-                        return dt
-                except:
-                    pass
-        return None
-
-    def _save_pause(self, dt):
-        with open(self.lock_file, 'w') as f:
-            f.write(str(dt.timestamp()))
-
     def check_for_jumps(self):
         if self.paused_until and datetime.now() < self.paused_until:
             return True
@@ -94,17 +36,9 @@ class JumpWatchdog:
             if abs(z_score) > threshold:
                 print(f"!!! JUMP DETECTED on {ticker} (Z-Score: {z_score:.2f} | Limit: {threshold}) !!!")
                 print("ACTION: Pausing all trading operations for 15 minutes.")
-                pause_dt = datetime.now() + timedelta(minutes=15)
-                self.paused_until = pause_dt
-                self._save_pause(pause_dt)
+                self.paused_until = datetime.now() + timedelta(minutes=15)
                 return True
         return False
-
-    def get_remaining_pause_minutes(self):
-        if not self.paused_until:
-            return 0
-        diff = self.paused_until - datetime.now()
-        return max(0, int(diff.total_seconds() / 60))
 
 def get_yield_spread_momentum(ticker, macro_data):
     """
@@ -165,7 +99,6 @@ def check_macro_alignment(ticker, direction, macro_data):
 
 def main():
     watchdog = JumpWatchdog(WATCHDOG_TICKERS)
-    tracker = TradeTracker()
     
     # 0. Global Sentiment Assessment
     print("\n--- Market Sentiment & Risk Assessment ---")
@@ -179,11 +112,9 @@ def main():
     print("\n=== Currency Pair Analysis Pipeline ===")
     
     # --- JUMP WATCHDOG CHECK ---
-    is_shock_paused = watchdog.check_for_jumps()
-    if is_shock_paused:
-        rem = watchdog.get_remaining_pause_minutes()
-        print(f"!!! WARNING: Trading paused (Market Shock). Resuming in {rem} minutes. !!!")
-        print("!!! Analysis shown for INFORMATION ONLY. Automated trading BLOCKED. !!!")
+    if watchdog.check_for_jumps():
+        print("Trading paused due to market shock. Skipping analysis.")
+        return
 
     data = fetch_data(CURRENCY_PAIRS, INTERVAL, PERIOD)
     
@@ -210,9 +141,6 @@ def main():
         try:
             is_breakout, direction, regime, _, current_atr, prob = detect_breakout(df, ticker=pair, macro_data=macro_data)
             regime_results[pair] = regime
-            raw_direction = direction
-            veto_flag = False
-            veto_reason = None
             
             # --- APPLY MACRO WEIGHTING ---
             macro_weight = get_macro_weight(pair, direction, macro_data)
@@ -235,26 +163,16 @@ def main():
             if gatekeeper_status == "BEARISH_ONLY" and direction == "LONG":
                 print(f"  [VETO] {pair} LONG signal rejected: Macro Bias.")
                 direction = "None"
-                veto_flag = True
-                veto_reason = "Macro Bias"
             elif gatekeeper_status == "BULLISH_ONLY" and direction == "SHORT":
                 print(f"  [VETO] {pair} SHORT signal rejected: Macro Bias.")
                 direction = "None"
-                veto_flag = True
-                veto_reason = "Macro Bias"
             elif gatekeeper_status == "SCALP_ONLY" and pair == "CL=F":
                 print(f"  {pair} | WAR-TIME SCALP MODE: Tightening TP/SL.")
-                # Override TP/SL with 1:1 Risk/Reward
-                risk = current_atr * 2
-                tp = current_price + (1 if direction == "LONG" else -1) * risk
-                sl = current_price - (1 if direction == "LONG" else -1) * risk
             
             # --- CONFIDENCE THRESHOLD ---
             if adjusted_prob < 0.6 and direction != "None":
                  print(f"  [VETO] {pair} Signal Rejected: Low Macro-Adjusted Confidence ({adjusted_prob:.2f})")
                  direction = "None"
-                 veto_flag = True
-                 veto_reason = "Low Confidence"
 
             # Calculate 1.2 Candle Trigger for Majors
             trigger = None
@@ -263,24 +181,11 @@ def main():
             elif regime == "Trend Breakout" and direction != "None":
                 trigger = get_trigger_price(df, regime, direction, current_atr, macro_phase="WIN_PHASE")
             
-            # --- FINAL SIGNAL TAGGING ---
-            # Priority: EXIT > SHOCK PAUSE > WARNING > NORMAL
-            should_exit = tracker.update_signal(pair, direction)
-            if should_exit:
-                breakout_directions[pair] = "EXIT"
-                direction = "None"
-            elif is_shock_paused and raw_direction != "None":
-                breakout_directions[pair] = f"{raw_direction} (SHOCK PAUSE)"
-                direction = "None"
-            elif veto_flag and raw_direction != "None":
-                tag = f" (WARNING: {veto_reason})" if veto_reason else " (WARNING)"
-                breakout_directions[pair] = f"{raw_direction}{tag}"
-                direction = "None"
-            else:
-                breakout_directions[pair] = direction
-
+            # Update summary direction AFTER all filters
+            breakout_directions[pair] = direction
+            
             # Diagnostic: show current state
-            msg = f"  {pair:<12} | Regime: {regime:<15} | Dir: {breakout_directions[pair]} | Conf: {adjusted_prob:.2f}"
+            msg = f"  {pair:<12} | Regime: {regime:<15} | Dir: {direction} | Conf: {adjusted_prob:.2f}"
             if pair in MAJORS_FIX_LIST and regime == "Trend Breakout":
                 msg += f" | Macro: {macro_phase}"
             if tp and sl:
