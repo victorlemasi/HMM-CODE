@@ -33,7 +33,7 @@ from macro_bouncer import check_fundamental_gatekeeper
 from config import CURRENCY_PAIRS, MAJORS_FIX_LIST
 
 # ─── Configuration ─────────────────────────────────────────────────────────────
-BACKTEST_PERIOD = "6mo"          # Historical data to fetch
+BACKTEST_PERIOD = "4mo"          # Historical data to fetch
 BACKTEST_INTERVAL = "1h"         # Bar interval
 TRAIN_WINDOW = 1200               # Bars used to train HMM before each signal (Goldilocks zone)
 STEP_SIZE = 24                   # Re-fit HMM every N bars (24 = daily)
@@ -98,10 +98,12 @@ def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None
         current_price = df['Close'].iloc[t]
         tp_level, sl_level = get_dynamic_exit_levels(regime, current_price, current_atr, direction, ticker=ticker)
         
-        # 1.2 Candle Filter: Calculate Trigger Price for Majors
+        # 1.2 Candle Filter: Calculate Trigger Price for all Trend Breakouts
         trigger_price = None
-        if ticker in MAJORS_FIX_LIST and regime == "Trend Breakout":
-            trigger_price = get_trigger_price(df.iloc[:t], regime, direction, current_atr)
+        if regime == "Trend Breakout":
+            # For non-majors, we treat it as "WIN_PHASE" (standard breakout confirmed)
+            phase = "WIN_PHASE" if ticker not in MAJORS_FIX_LIST else "TRAP_PHASE"
+            trigger_price = get_trigger_price(df.iloc[:t], regime, direction, current_atr, macro_phase=phase)
 
         # ── Intra-step Simulation ──────────────────────────────────────────
         # Check each bar until the next re-training step for TP/SL hits
@@ -187,7 +189,7 @@ def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None
 
     if not trades:
         return {'ticker': ticker, 'trades': 0, 'total_return': 0,
-                'win_rate': 0, 'max_drawdown': 0, 'sharpe': 0}
+                'win_rate': 0, 'max_drawdown': 0, 'sharpe': 0, 'trade_log': pd.DataFrame()}
 
     df_trades = pd.DataFrame(trades)
     returns = df_trades['Net_Return'].values

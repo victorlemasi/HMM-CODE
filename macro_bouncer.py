@@ -10,6 +10,11 @@ def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
     if macro_data is None:
         return "ALLOW"
 
+    # Assets mapped as 'technical_only' trust the HMM fully — skip all macro vetos
+    from config import ASSET_MAPPINGS
+    if ASSET_MAPPINGS.get(ticker, {}).get('type') == 'technical_only':
+        return "ALLOW"
+
     try:
         # Thresholds (War-Time March 2026 calibrated)
         DXY_WALL = 100.40

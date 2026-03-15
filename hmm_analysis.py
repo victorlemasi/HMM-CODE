@@ -140,6 +140,17 @@ def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = Non
                 df['Spec_Feat'] = -dxy_aligned['Close']
                 features_cols.append('Spec_Feat')
 
+        elif m_type == 'technical_only':
+            if ticker == 'GC=F':
+                # Gold is inversely correlated to DXY - include as HMM feature
+                dxy_ticker = YIELD_TICKERS.get('DXY')
+                if dxy_ticker in macro_data and not macro_data[dxy_ticker].empty:
+                    dxy_df = macro_data[dxy_ticker].copy()
+                    dxy_df.index = dxy_df.index.tz_localize(None) if dxy_df.index.tz else dxy_df.index
+                    dxy_aligned = dxy_df.reindex(price_idx, method='ffill').bfill()
+                    df['Spec_Feat'] = -dxy_aligned['Close']
+                    features_cols.append('Spec_Feat')
+
     df = df.dropna()
     
     # 1.2 "Goldilocks" Window: Use 1,000 - 1,200 bars to avoid overfitting
@@ -256,7 +267,7 @@ def get_dynamic_exit_levels(regime, price, atr, direction, ticker=None):
             tp_dist = atr * MAJORS_TP_MULTIPLIER
             sl_dist = atr * 1.2 # Give it room to breathe
         else:
-            tp_dist = atr * 2.0 # Standard TP for successful pairs (was implicit 3.0 before, but keeping standard 2.0x tp_dist or wait, let's look at what standard was. User says winners have 1.0 Candle / 2.0x TP logic. So changing to 2.0)
+            tp_dist = atr * 3.0 # Expanded TP for 'Big Moves' (Gold/Oil)
             sl_dist = atr * 1.0 # Standard tight stop
     else:
         return None, None

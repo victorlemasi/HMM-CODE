@@ -19,7 +19,7 @@ N_CLUSTERS = 4
 # HMM settings
 HMM_COMPONENTS = 3  # Consolidation, Mean Reversion, Trend Breakout
 ATR_MULTIPLIER_FX = 0.15 
-ATR_MULTIPLIER_GOLD = 0.2
+ATR_MULTIPLIER_GOLD = 0.15
 
 # GPR Integration Settings
 GPR_SPIKE_THRESHOLD = 2.0  # Std deviations for a spike
