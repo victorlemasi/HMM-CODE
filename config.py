@@ -35,18 +35,15 @@ COMMODITY_TICKERS = {
 }
 YIELD_TICKERS = {
     'US10Y': '^TNX',
-    'GER10Y': 'DE10YT=RR',
     'DXY': 'DX-Y.NYB',
-    'NZ10Y_LIVE': '^NZ10',
-    'UK10Y_PROXY': 'IGLT.L',
-    'GER10Y_PROXY': 'IEGA.DE'
+    'NZ10Y_LIVE': '^NZ10'
 }
 
 FRED_TICKERS = {
     'NZ10Y': 'IRLTLT01NZM156N',
     'NZ_OCR': 'IRSTCI01NZM156N',
-    'UK10Y': 'IRLTLT01GBM156N',
-    'GER10Y': 'IRLTLT01DEM156N'
+    'UK10Y': 'IRLTLT01GBM156N',  # UK Government Bond Yield (Long-term)
+    'GER10Y': 'IRLTLT01DEM156N'  # Germany Government Bond Yield (Long-term)
 }
 
 # Macro Filter Settings
@@ -56,7 +53,7 @@ YIELD_THRESHOLD = 0.05  # Minimum bps change to consider it a "Macro Trend"
 # Central Bank Policy Rates (FRED Tickers)
 POLICY_RATE_TICKERS = {
     'USD': 'FEDFUNDS',
-    'EUR': 'ECB_FIXED_RATE_FOR_MAIN_REFINANCING_OPERATIONS_DAILY', # Note: Usually monthly/daily
+    'EUR': 'ECBMRRFR', # European Central Bank Refinancing Rate
     'GBP': 'IRLTLT01GBM156N', # Proxy if daily bank rate not available
     'JPY': 'IRSTCI01JPM156N',
     'AUD': 'IRSTCI01AUM156N',

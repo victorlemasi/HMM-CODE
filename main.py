@@ -7,7 +7,7 @@ from hmm_analysis import detect_breakout, get_dynamic_exit_levels, get_trigger_p
 from config import (
     CURRENCY_PAIRS, INTERVAL, PERIOD, N_CLUSTERS, GPR_SPIKE_THRESHOLD, 
     SAFE_HAVEN_TICKER, MAJORS_FIX_LIST, MAJORS_MACRO_ENABLE, 
-    ASSET_MAPPINGS, YIELD_TICKERS, YIELD_THRESHOLD, CONFIRMATION_BUFFER, MAJORS_TP_MULTIPLIER,
+    ASSET_MAPPINGS, YIELD_TICKERS, FRED_TICKERS, YIELD_THRESHOLD, CONFIRMATION_BUFFER, MAJORS_TP_MULTIPLIER,
     WATCHDOG_TICKERS
 )
 from gpr_fetcher import fetch_latest_gpr
@@ -49,8 +49,8 @@ def get_yield_spread_momentum(ticker, macro_data):
         return 0
         
     mapping = ASSET_MAPPINGS[ticker]
-    base_ticker = YIELD_TICKERS.get(mapping['base'])
-    quote_ticker = YIELD_TICKERS.get(mapping['quote'])
+    base_ticker = YIELD_TICKERS.get(mapping['base']) or FRED_TICKERS.get(mapping['base'])
+    quote_ticker = YIELD_TICKERS.get(mapping['quote']) or FRED_TICKERS.get(mapping['quote'])
     
     if base_ticker not in macro_data or quote_ticker not in macro_data or macro_data[base_ticker].empty or macro_data[quote_ticker].empty:
         # Fallback to DXY momentum

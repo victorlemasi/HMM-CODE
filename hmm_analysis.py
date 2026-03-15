@@ -4,7 +4,7 @@ from hmmlearn.hmm import GaussianHMM
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
 from config import (
-    HMM_COMPONENTS, ASSET_MAPPINGS, COMMODITY_TICKERS, YIELD_TICKERS,
+    HMM_COMPONENTS, ASSET_MAPPINGS, COMMODITY_TICKERS, YIELD_TICKERS, FRED_TICKERS,
     ATR_MULTIPLIER_FX, ATR_MULTIPLIER_GOLD, MAJORS_FIX_LIST,
     CONFIRMATION_BUFFER, MAJORS_TP_MULTIPLIER
 )
@@ -104,8 +104,9 @@ def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = Non
         elif m_type == 'macro':
             base_key = mapping['base']
             quote_key = mapping['quote']
-            base_ticker = YIELD_TICKERS.get(base_key)
-            quote_ticker = YIELD_TICKERS.get(quote_key)
+            # Search both Yahoo and FRED sources
+            base_ticker = YIELD_TICKERS.get(base_key) or FRED_TICKERS.get(base_key)
+            quote_ticker = YIELD_TICKERS.get(quote_key) or FRED_TICKERS.get(quote_key)
             dxy_ticker = YIELD_TICKERS.get('DXY')
             
             if base_ticker in macro_data and quote_ticker in macro_data and not macro_data[base_ticker].empty and not macro_data[quote_ticker].empty:
