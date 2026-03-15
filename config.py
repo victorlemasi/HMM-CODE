@@ -1,11 +1,9 @@
-# List of 20 major and minor currency pairs
 CURRENCY_PAIRS = [
     'EURUSD=X', 'GBPUSD=X', 'USDJPY=X', 'USDCHF=X', 'AUDUSD=X',
     'USDCAD=X', 'NZDUSD=X', 'EURGBP=X', 'EURJPY=X', 'GBPJPY=X',
     'EURCHF=X', 'GBPCHF=X', 'AUDJPY=X', 'NZDJPY=X', 'CHFJPY=X',
     'EURAUD=X', 'EURNZD=X', 'GBPAUD=X', 'GBPNZD=X', 'AUDNZD=X',
-    'GC=F',   # Gold Futures (Safe Haven)
-    'CL=F'    # Crude Oil (Geopolitical Context)
+    'GC=F', 'CL=F'
 ]
 
 # Timeframe for analysis
@@ -19,7 +17,7 @@ N_CLUSTERS = 4
 # HMM settings
 HMM_COMPONENTS = 3  # Consolidation, Mean Reversion, Trend Breakout
 ATR_MULTIPLIER_FX = 0.15 
-ATR_MULTIPLIER_GOLD = 0.15
+ATR_MULTIPLIER_GOLD = 0.2
 
 # GPR Integration Settings
 GPR_SPIKE_THRESHOLD = 2.0  # Std deviations for a spike

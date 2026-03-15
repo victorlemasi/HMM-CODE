@@ -37,6 +37,7 @@ def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
         dxy_change = (current_dxy - dxy_slice['Close'].iloc[-25]) / dxy_slice['Close'].iloc[-25]
 
         # --- GOLD OVERRIDE ---
+        # Strategy: Block Gold LONGs if yields rise WITH DXY (Real Yield Pressure).
         if ticker == "GC=F":
             if yield_df is not None and not yield_df.empty:
                 yield_slice = yield_df[yield_df.index <= current_time]
@@ -44,8 +45,16 @@ def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
                     current_yield = yield_slice['Close'].iloc[-1]
                     prev_yield = yield_slice['Close'].iloc[-2]
                     yield_change = current_yield - prev_yield
-                    if current_dxy > 100.20 or yield_change > 0:
+                    
+                    # Real Yield Filter: If yields up AND DXY up -> Bearish for Gold
+                    if yield_change > 0.02 and dxy_change > 0.001:
                         return "BEARISH_ONLY"
+                    
+                    # Crisis Protection: Only block if DXY is in extreme territory
+                    if current_dxy > 104.5 and dxy_change > 0.005:
+                        return "BEARISH_ONLY"
+                        
+            return "ALLOW" # Bypass general bouncer for Gold
 
         # --- OIL OVERRIDE ---
         if ticker == "CL=F":
