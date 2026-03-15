@@ -212,6 +212,7 @@ def main():
             regime_results[pair] = regime
             raw_direction = direction
             veto_flag = False
+            veto_reason = None
             
             # --- APPLY MACRO WEIGHTING ---
             macro_weight = get_macro_weight(pair, direction, macro_data)
@@ -235,10 +236,12 @@ def main():
                 print(f"  [VETO] {pair} LONG signal rejected: Macro Bias.")
                 direction = "None"
                 veto_flag = True
+                veto_reason = "Macro Bias"
             elif gatekeeper_status == "BULLISH_ONLY" and direction == "SHORT":
                 print(f"  [VETO] {pair} SHORT signal rejected: Macro Bias.")
                 direction = "None"
                 veto_flag = True
+                veto_reason = "Macro Bias"
             elif gatekeeper_status == "SCALP_ONLY" and pair == "CL=F":
                 print(f"  {pair} | WAR-TIME SCALP MODE: Tightening TP/SL.")
                 # Override TP/SL with 1:1 Risk/Reward
@@ -251,6 +254,7 @@ def main():
                  print(f"  [VETO] {pair} Signal Rejected: Low Macro-Adjusted Confidence ({adjusted_prob:.2f})")
                  direction = "None"
                  veto_flag = True
+                 veto_reason = "Low Confidence"
 
             # Calculate 1.2 Candle Trigger for Majors
             trigger = None
@@ -269,7 +273,8 @@ def main():
                 breakout_directions[pair] = f"{raw_direction} (SHOCK PAUSE)"
                 direction = "None"
             elif veto_flag and raw_direction != "None":
-                breakout_directions[pair] = f"{raw_direction} (WARNING)"
+                tag = f" ({veto_reason})" if veto_reason else " (WARNING)"
+                breakout_directions[pair] = f"{raw_direction}{tag}"
                 direction = "None"
             else:
                 breakout_directions[pair] = direction
