@@ -271,8 +271,9 @@ def main():
         if pair not in ["CL=F", "GC=F"]:
             continue
         entry_time = datetime.fromisoformat(info['entry_time'])
-        if datetime.now() - entry_time > timedelta(hours=4):
-            print(f"!!! WAR-TIME TIME EXIT: {pair} has been open for > 4 hours. !!!")
+        limit_hours = 8 if pair == "GC=F" else 4
+        if datetime.now() - entry_time > timedelta(hours=limit_hours):
+            print(f"!!! WAR-TIME TIME EXIT: {pair} has been open for > {limit_hours} hours. !!!")
             if pair not in exits:
                 exits.append(pair)
             # Remove from new tracker to "forget" this trade

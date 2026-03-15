@@ -253,7 +253,7 @@ def get_dynamic_exit_levels(regime, price, atr, direction, ticker=None, is_scalp
         sl_dist = atr * 2.0
     elif regime == "Mean Reversion":
         tp_dist = atr * 1.0
-        sl_dist = atr * 1.5
+        sl_dist = atr * 2.0  # Increased from 1.5x for robustness
     elif regime == "Trend Breakout":
         # Check if this is a Major inside MAJORS_FIX_LIST
         if ticker in MAJORS_FIX_LIST:

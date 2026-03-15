@@ -70,9 +70,7 @@ WATCHDOG_JUMP_THRESHOLDS = {
 }
 
 ASSET_MAPPINGS = {
-    'AUDUSD=X': {'type': 'commodity', 'key': 'COPPER'},
     'USDCAD=X': {'type': 'commodity', 'key': 'OIL'},
-    'NZDUSD=X': {'type': 'commodity', 'key': 'GOLD'},
     'USDJPY=X': {'type': 'yield', 'key': 'US10Y'},
     'EURUSD=X': {'type': 'macro', 'base': 'GER10Y', 'quote': 'US10Y'},
     'GBPUSD=X': {'type': 'macro', 'base': 'UK10Y', 'quote': 'US10Y'},
