@@ -1,8 +1,8 @@
 {
-    "GC=F": {
-        "dir": "LONG",
-        "entry_time": "2026-03-15T13:54:41.857004",
+    "USDCAD=X": {
+        "dir": "SHORT",
+        "entry_time": "2026-03-15T17:02:50.527543",
         "regime": "Mean Reversion",
-        "bars_active": 0
+        "bars_active": 1
     }
 }

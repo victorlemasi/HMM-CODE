@@ -162,15 +162,24 @@ def main():
     print("\n--- Running HMM Regime Detection ---")
     regime_results = {}
     breakout_directions = {}
+    warnings_dict = {}
     
     for pair, df in data.items():
         try:
+            pair_warnings = []
+            if is_gpr_spike and pair == SAFE_HAVEN_TICKER:
+                pair_warnings.append("GPR Spike -> Safe Haven Priority")
+                
             is_breakout, direction, regime, _, current_atr, prob = detect_breakout(df, ticker=pair, macro_data=macro_data)
             regime_results[pair] = regime
             
             # --- APPLY THE FUNDAMENTAL BOUNCER (Global Gatekeeper) ---
             current_time = df.index[-1]
             gatekeeper_status = check_fundamental_gatekeeper(pair, current_time, macro_data)
+            
+            if gatekeeper_status != "ALLOW":
+                pair_warnings.append(f"Macro Gatekeeper: {gatekeeper_status}")
+                
             
             # Calculate Dynamic Exit Levels
             current_price = df['Close'].iloc[-1]
@@ -208,10 +217,12 @@ def main():
             hour_utc = current_time.hour
             if pair in MAJORS_FIX_LIST and LUNCH_ZONE[0] <= hour_utc < LUNCH_ZONE[1]:
                 conf_thresh = 0.90
+                pair_warnings.append("LUNCH ZONE Penalty")
                 print(f"  {pair} | LUNCH ZONE: Increasing confidence threshold to 0.90")
 
             if adjusted_prob < conf_thresh and direction not in ["None", "⚠️LONG", "⚠️SHORT"]:
                  print(f"  [VETO] {pair} Signal Rejected: Low Contextual Confidence ({adjusted_prob:.2f} < {conf_thresh})")
+                 pair_warnings.append(f"Low Confidence ({adjusted_prob:.2f} < {conf_thresh})")
                  direction = f"⚠️{direction}"
 
             # Calculate 1.2 Candle Trigger for Majors
@@ -223,6 +234,8 @@ def main():
             
             # Update summary direction AFTER all filters
             breakout_directions[pair] = direction
+            warnings_dict[pair] = " | ".join(pair_warnings) if pair_warnings else ""
+            
             
             # --- TRACKING LOGIC ---
             if direction in ["LONG", "SHORT"]:
@@ -281,6 +294,7 @@ def main():
     summary['Regime'] = pd.Series(regime_results)
     summary['Direction'] = pd.Series(breakout_directions)
     summary['State'] = summary['Regime'] # For compatibility with rebalancer
+    summary['Warnings'] = pd.Series(warnings_dict)
     
     # Risk Overlay
     print("\n--- Risk Overlay ---")
