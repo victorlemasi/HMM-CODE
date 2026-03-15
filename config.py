@@ -53,12 +53,24 @@ YIELD_THRESHOLD = 0.05  # Minimum bps change to consider it a "Macro Trend"
 # Central Bank Policy Rates (FRED Tickers)
 POLICY_RATE_TICKERS = {
     'USD': 'FEDFUNDS',
-    'EUR': 'ECBMRRFR', # European Central Bank Refinancing Rate
-    'GBP': 'IRLTLT01GBM156N', # Proxy if daily bank rate not available
+    'EUR': 'ECBMRRFR',
+    'GBP': 'IRLTLT01GBM156N',
     'JPY': 'IRSTCI01JPM156N',
     'AUD': 'IRSTCI01AUM156N',
     'CAD': 'IRSTCI01CAM156N',
     'NZD': 'IRSTCI01NZM156N'
+}
+
+FRED_2Y_TICKERS = {
+    'US2Y': 'GS2',        
+    'GER2Y': 'IRLTLT01DEM156N', 
+    'UK2Y': 'IRLTLT01GBM156N'
+}
+
+FRED_2Y_TICKERS = {
+    'US2Y': 'GS2',        
+    'GER2Y': 'IRLTLT01DEM156N', 
+    'UK2Y': 'IRLTLT01GBM156N'
 }
 
 # 1-minute Watchdog Tickers
@@ -89,3 +101,15 @@ CONFIRMATION_BUFFER = 0.2
 MAJORS_TP_MULTIPLIER = 3.0
 BB_SQUEEZE_THRESHOLD = 0.05 # EURUSD only breakouts if squeeze < 5% of price
 TIPS_TICKER = 'DFII10' # FRED Real Yield
+
+# EFFICIENCY EQUILIBRIUM OVERRIDES
+MAJORS_MIN_CONFIDENCE = 0.85
+MAJORS_SL_ATR = 2.5
+SAR_PARAMS = {'start': 0.02, 'max': 0.2}
+
+# Kill Zone Windows (UTC)
+KILL_ZONES = [
+    (7, 11),  # London Open
+    (13, 17)  # NY Open / Overlap
+]
+LUNCH_ZONE = (11, 13) # London Lunch (Lull Penalty)

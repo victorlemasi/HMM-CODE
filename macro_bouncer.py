@@ -31,6 +31,77 @@ def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
         # Daily momentum (approx 24h/24 bars)
         dxy_change = (current_dxy - dxy_slice['Close'].iloc[-25]) / dxy_slice['Close'].iloc[-25]
 
+        # --- MAJORS SOPHISTICATION: Yield Curve Slope (2s10s) Filter ---
+        if ticker in ["EURUSD=X", "GBPUSD=X"]:
+            from config import FRED_2Y_TICKERS, FRED_TICKERS
+            is_eur = ticker.startswith("EUR")
+            ten_y_ticker = FRED_TICKERS.get('GER10Y' if is_eur else 'UK10Y')
+            two_y_ticker = FRED_2Y_TICKERS.get('GER2Y' if is_eur else 'UK2Y')
+            us_10y_ticker = "^TNX" 
+            us_2y_ticker = FRED_2Y_TICKERS.get('US2Y')
+            
+            data_points = []
+            for tkr in [ten_y_ticker, two_y_ticker, us_10y_ticker, us_2y_ticker]:
+                df_tkr = macro_data.get(tkr)
+                if df_tkr is not None and not df_tkr.empty:
+                    slice_tkr = df_tkr[df_tkr.index <= current_time]
+                    if not slice_tkr.empty:
+                        data_points.append(slice_tkr['Close'].iloc[-1])
+            
+            if len(data_points) == 4:
+                domestic_slope = data_points[0] - data_points[1]
+                us_slope = data_points[2] - data_points[3]
+                if (domestic_slope - us_slope) < -0.10: # Loosened from 0.20 to 10bps
+                    return "BEARISH_ONLY"
+
+        # --- MAJORS SOPHISTICATION: Basket Sync Filter ---
+        if ticker in ["EURUSD=X", "GBPUSD=X"]:
+            dxy_df = macro_data.get('DX-Y.NYB')
+            if dxy_df is not None and not dxy_df.empty:
+                dxy_slice = dxy_df[dxy_df.index <= current_time]
+                if len(dxy_slice) >= 5:
+                    dxy_mom = dxy_slice['Close'].iloc[-1] - dxy_slice['Close'].iloc[-5]
+                    # EURUSD/GBPUSD Long needs Bearish USD (dxy_mom < 0)
+                    if dxy_mom > 0.2: # Loosened from 0.4
+                        return "BEARISH_ONLY" 
+                    elif dxy_mom < -0.2: # Loosened from -0.4
+                        return "BULLISH_ONLY" 
+
+        # --- EFFICIENCY EQUILIBRIUM: Temporal Kill Zone Gate ---
+        if ticker in ["EURUSD=X", "GBPUSD=X"]:
+            from config import KILL_ZONES, LUNCH_ZONE
+            hour = current_time.hour if hasattr(current_time, 'hour') else pd.to_datetime(current_time).hour
+            
+            in_kill_zone = any(start <= hour < end for start, end in KILL_ZONES)
+            in_lunch = LUNCH_ZONE[0] <= hour < LUNCH_ZONE[1]
+            
+            if not in_kill_zone and not in_lunch:
+                # Outside peak liquidity, veto new non-trend positions or force consolidation
+                return "BEARISH_ONLY" # Arbitrary veto for technical breakouts in dead hours
+
+            # Lunch Penalty: This will be handled in main.py/backtest.py by checking confidence
+
+        # --- EFFICIENCY EQUILIBRIUM: Major Basket Sync ---
+        if ticker in ["EURUSD=X", "GBPUSD=X"]:
+            dxy_df = macro_data.get('DX-Y.NYB')
+            other_major = "GBPUSD=X" if ticker == "EURUSD=X" else "EURUSD=X"
+            other_df = macro_data.get(other_major)
+            
+            if dxy_df is not None and not dxy_df.empty and other_df is not None and not other_df.empty:
+                dxy_slice = dxy_df[dxy_df.index <= current_time]
+                other_slice = other_df[other_df.index <= current_time]
+                
+                if len(dxy_slice) >= 3 and len(other_slice) >= 3:
+                    dxy_mom = dxy_slice['Close'].iloc[-1] - dxy_slice['Close'].iloc[-3]
+                    other_mom = other_slice['Close'].iloc[-1] - other_slice['Close'].iloc[-3]
+                    
+                    # Logic: Before EURUSD Long, need Bearish DXY and Bullish GBP
+                    # If DXY is rising, it's a "Liquidity Sweep" trap. Veto Longs.
+                    if dxy_mom > 0.05:
+                        return "BEARISH_ONLY" # Only allow shorts if DXY is rising
+                    if other_mom < 0: # Lack of basket sync
+                         return "BEARISH_ONLY" # Veto technical longs if others are weak
+
         # --- GOLD OVERRIDE: Real Yield (TIPS) & Nominal Yields ---
         if ticker == "GC=F":
             from config import TIPS_TICKER

@@ -94,8 +94,8 @@ def get_macro_data(interval: str, period: str) -> Dict[str, pd.DataFrame]:
     data = fetch_data(macro_tickers, interval=interval, period=period)
     
     # FRED Data
-    from config import TIPS_TICKER
-    fred_tickers = list(FRED_TICKERS.values()) + list(POLICY_RATE_TICKERS.values()) + [TIPS_TICKER]
+    from config import TIPS_TICKER, FRED_2Y_TICKERS
+    fred_tickers = list(FRED_TICKERS.values()) + list(POLICY_RATE_TICKERS.values()) + [TIPS_TICKER] + list(FRED_2Y_TICKERS.values())
     fred_tickers = list(set(fred_tickers))
     if fred_tickers:
         fred_data = fetch_fred_data(fred_tickers)

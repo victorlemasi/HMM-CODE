@@ -200,9 +200,18 @@ def main():
                 # Print notice but logic is handled above in TP/SL calculation
                 pass
             
-            # --- CONFIDENCE THRESHOLD (Sophistication Upgrade: 0.7) ---
-            if adjusted_prob < 0.7 and direction not in ["None", "⚠️LONG", "⚠️SHORT"]:
-                 print(f"  [VETO] {pair} Signal Rejected: Low Macro-Adjusted Confidence ({adjusted_prob:.2f})")
+            # --- EFFICIENCY EQUILIBRIUM: Confidence Thresholds ---
+            from config import MAJORS_MIN_CONFIDENCE, LUNCH_ZONE
+            conf_thresh = MAJORS_MIN_CONFIDENCE if pair in MAJORS_FIX_LIST else 0.7
+            
+            # London Lunch Penalty
+            hour_utc = current_time.hour
+            if pair in MAJORS_FIX_LIST and LUNCH_ZONE[0] <= hour_utc < LUNCH_ZONE[1]:
+                conf_thresh = 0.90
+                print(f"  {pair} | LUNCH ZONE: Increasing confidence threshold to 0.90")
+
+            if adjusted_prob < conf_thresh and direction not in ["None", "⚠️LONG", "⚠️SHORT"]:
+                 print(f"  [VETO] {pair} Signal Rejected: Low Contextual Confidence ({adjusted_prob:.2f} < {conf_thresh})")
                  direction = f"⚠️{direction}"
 
             # Calculate 1.2 Candle Trigger for Majors
@@ -228,6 +237,20 @@ def main():
                         print(f"  [SIGNAL EXPIRED] {pair} failed to trigger within {expiry_limit} bars.")
                         direction = "None"
                         del new_tracker[pair]
+                    
+                    # --- EFFICIENCY EQUILIBRIUM: Progressive SAR-style Stops ---
+                    if pair in MAJORS_FIX_LIST and direction != "None": # Only apply if signal is still active
+                        pnl_atr = (current_price - new_tracker[pair]['entry']) / current_atr if direction == "LONG" else (new_tracker[pair]['entry'] - current_price) / current_atr
+                        if pnl_atr > 0.5:
+                            # Tighten SL as price moves
+                            trail_move = pnl_atr * 0.5 * current_atr
+                            new_sl = new_tracker[pair]['entry'] + trail_move if direction == "LONG" else new_tracker[pair]['entry'] - trail_move
+                            # Only tighten, never loosen
+                            if direction == "LONG":
+                                new_tracker[pair]['sl'] = max(new_tracker[pair].get('sl', 0), new_sl)
+                            else:
+                                new_tracker[pair]['sl'] = min(new_tracker[pair].get('sl', 999999), new_sl)
+                            print(f"  {pair} | PROGRESSIVE STOP: Tightened SL to {new_tracker[pair]['sl']:.5f} (PnL: {pnl_atr:.2f} ATR)")
                 else:
                     # New Entry
                     new_tracker[pair] = {

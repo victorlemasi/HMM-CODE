@@ -112,13 +112,12 @@ def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = Non
     df['ATR'] = calculate_atr(df)
     df['ATR_Norm'] = df['ATR'] / df['Close']
     
-    # Volume/Volatility Ratio (Efficiency)
-    if 'Volume' in df.columns:
-        df['Vol_Eff'] = df['Range'] / (df['Volume'].rolling(window=10).mean() + 1e-9)
-    else:
-        df['Vol_Eff'] = 0
+    features_cols = ['Returns', 'Volatility', 'Range', 'Momentum', 'RSI']
     
-    features_cols = ['Returns', 'Volatility', 'Range', 'Momentum', 'RSI', 'Vol_Eff']
+    # Efficiency Equilibrium: SmartRatio for Majors
+    if ticker in ["EURUSD=X", "GBPUSD=X"] and 'Volume' in df.columns:
+        df['SmartRatio'] = df['Volume'] / (df['ATR'] + 1e-9)
+        features_cols.append('SmartRatio')
 
     # 1.1 Asset-Specific Features
     if ticker in ASSET_MAPPINGS and macro_data:
@@ -178,6 +177,24 @@ def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = Non
                 
                 df['Spec_Feat'] = base_aligned['Close'] - quote_aligned['Close']
                 features_cols.append('Spec_Feat')
+                
+                # --- EFFICIENCY EQUILIBRIUM: 2s10s spread ROC ---
+                from config import FRED_2Y_TICKERS
+                is_eur = ticker.startswith("EUR")
+                two_y_key = 'GER2Y' if is_eur else 'UK2Y'
+                two_y_ticker = FRED_2Y_TICKERS.get(two_y_key)
+                
+                if two_y_ticker in macro_data and not macro_data[two_y_ticker].empty:
+                    two_y_df = macro_data[two_y_ticker].copy()
+                    two_y_df.index = two_y_df.index.tz_localize(None) if two_y_df.index.tz else two_y_df.index
+                    two_y_aligned = two_y_df.reindex(price_idx, method='ffill').bfill()
+                    
+                    # Domestic 2s10s spread
+                    spread_2s10s = base_aligned['Close'] - two_y_aligned['Close']
+                    # ROC of the spread (5-bar rolling change)
+                    df['Yield_ROC'] = spread_2s10s.diff(5)
+                    df['Yield_ROC'] = df['Yield_ROC'].fillna(0)
+                    features_cols.append('Yield_ROC')
             elif dxy_ticker in macro_data and not macro_data[dxy_ticker].empty:
                 # Fallback to DXY if primary yield spread is missing
                 dxy_df = macro_data[dxy_ticker].copy()
@@ -280,6 +297,14 @@ def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = Non
             bb_width = calculate_bb_width(df).iloc[-1]
             if bb_width > BB_SQUEEZE_THRESHOLD:
                 regime = "Consolidation"
+        
+        # --- VOLUME-VOLATILITY DIVERGENCE FILTER (Majors) ---
+        if ticker in ["EURUSD=X", "GBPUSD=X"] and regime == "Trend Breakout":
+            if 'Volume' in df.columns:
+                avg_vol = df['Volume'].rolling(window=10).mean().iloc[-1]
+                curr_vol = df['Volume'].iloc[-1]
+                if curr_vol < avg_vol * 0.9: # Loosened from 0.8
+                     regime = "Consolidation"
         
         # Determine multiplier (K) based on asset type
         if regime == "Trend Breakout": # Check again if not filtered by BB

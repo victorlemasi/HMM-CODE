@@ -30,7 +30,7 @@ warnings.filterwarnings("ignore")
 from data_fetcher import fetch_data, get_macro_data
 from hmm_analysis import detect_breakout, get_dynamic_exit_levels, calculate_atr, get_trigger_price, calculate_z_score, calculate_mahalanobis_distance
 from macro_bouncer import check_fundamental_gatekeeper, get_macro_weight
-from config import CURRENCY_PAIRS, MAJORS_FIX_LIST, WATCHDOG_TICKERS, WATCHDOG_JUMP_THRESHOLDS
+from config import CURRENCY_PAIRS, MAJORS_FIX_LIST, WATCHDOG_TICKERS, WATCHDOG_JUMP_THRESHOLDS, LUNCH_ZONE, MAJORS_MIN_CONFIDENCE
 
 # ─── Configuration ─────────────────────────────────────────────────────────────
 BACKTEST_PERIOD = "6mo"          # Historical data to fetch
@@ -41,7 +41,7 @@ TRANSACTION_COST = 0.0002        # 2 pips per round trip (cost per trade)
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None) -> dict:
+def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None) -> dict:
     """
     Runs a walk-forward backtest for a single currency pair.
     Returns a dict of performance metrics.
@@ -58,13 +58,17 @@ def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None
     trades = []
     position = 0          # 1 = long, -1 = short, 0 = flat
     entry_price = None
+    entry_tp = None
+    entry_sl = None
+    entry_regime = None
+    entry_bar_idx = None
 
     # Walk-forward loop
     for t in range(TRAIN_WINDOW, total_bars, STEP_SIZE):
         train_slice = df.iloc[t - TRAIN_WINDOW:t].copy()
 
         try:
-            is_breakout, direction, regime, _, current_atr, prob = detect_breakout(train_slice, ticker=ticker, macro_data=macro_data)
+            is_breakout, direction, regime, _, current_atr, prob = detect_breakout(train_slice, ticker=symbol, macro_data=macro_data)
         except Exception:
             continue
 
@@ -73,54 +77,55 @@ def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None
             direction_hmm = 'LONG' if direction == 'LONG' else 'SHORT'
             
             # --- APPLY MACRO WEIGHTING (Stochastic Logic) ---
-            from macro_bouncer import get_macro_weight
-            macro_weight = get_macro_weight(ticker, direction_hmm, macro_data)
+            macro_weight = get_macro_weight(symbol, direction_hmm, macro_data)
             adjusted_prob = prob * macro_weight
             
-            # --- CONFIDENCE THRESHOLD (Sophistication Upgrade: 0.7) ---
-            if adjusted_prob < 0.7:
-                # print(f"  [VETO] {ticker} Low Confidence ({adjusted_prob:.2f})")
+            # --- LULL PENALTY (Efficiency Equilibrium) ---
+            current_dt = df.index[t]
+            hour = current_dt.hour
+            is_major = symbol in MAJORS_FIX_LIST
+            
+            conf_thresh = MAJORS_MIN_CONFIDENCE if is_major else 0.7
+            if is_major and LUNCH_ZONE[0] <= hour < LUNCH_ZONE[1]:
+                conf_thresh = 0.90 # Extreme confidence required during London Lunch
+            
+            if adjusted_prob < conf_thresh:
                 desired = 0
             else:
                 # --- APPLY THE FUNDAMENTAL BOUNCER (Global Gatekeeper) ---
-                macro_bias = check_fundamental_gatekeeper(ticker, df.index[t], macro_data)
+                macro_bias = check_fundamental_gatekeeper(symbol, df.index[t], macro_data)
                 
                 if macro_bias == "BEARISH_ONLY" and direction_hmm == "LONG":
-                    # print(f"  [VETO] {ticker} LONG signal rejected: Macro Bias")
                     desired = 0 
                 elif macro_bias == "BULLISH_ONLY" and direction_hmm == "SHORT":
-                    # print(f"  [VETO] {ticker} SHORT signal rejected: Macro Bias")
                     desired = 0 
                 else:
                     desired = 1 if direction_hmm == 'LONG' else -1
         
         # --- SIMULATED WATCHDOG (Audit Sync) ---
-        # If hourly Z-score > threshold, skip entry (Circuit Breaker)
-        if ticker in WATCHDOG_TICKERS and desired != 0:
-            if ticker == "GC=F":
-                # Multi-dim jump detection
+        if symbol in WATCHDOG_TICKERS and desired != 0:
+            if symbol == "GC=F":
                 score = calculate_mahalanobis_distance(df.iloc[max(0, t-20):t+1])
             else:
                 score = calculate_z_score(df['Close'].iloc[max(0, t-100):t+1])
                 
-            threshold = WATCHDOG_JUMP_THRESHOLDS.get(ticker, WATCHDOG_JUMP_THRESHOLDS['DEFAULT'])
+            threshold = WATCHDOG_JUMP_THRESHOLDS.get(symbol, WATCHDOG_JUMP_THRESHOLDS['DEFAULT'])
             if abs(score) > threshold:
                 desired = 0
 
         # Calculate levels for the NEW desired position
         current_price = df['Close'].iloc[t]
-        macro_bias = check_fundamental_gatekeeper(ticker, df.index[t], macro_data) if desired != 0 else None
-        is_scalp_active = (ticker == "CL=F" and macro_bias == "SCALP_ONLY")
-        tp_level, sl_level = get_dynamic_exit_levels(regime, current_price, current_atr, direction, ticker=ticker, is_scalp=is_scalp_active)
+        macro_bias_val = check_fundamental_gatekeeper(symbol, df.index[t], macro_data) if desired != 0 else None
+        is_scalp_active = (symbol == "CL=F" and macro_bias_val == "SCALP_ONLY")
+        tp_level, sl_level = get_dynamic_exit_levels(regime, current_price, current_atr, direction, ticker=symbol, is_scalp=is_scalp_active)
         
         # --- REGIME SHIFT EXIT ---
-        # If we have a position and the NEW regime is not a tradeable one, exit immediately
         if position != 0 and regime not in ('Trend Breakout', 'Mean Reversion'):
             exit_price = current_price
             raw_ret = position * (exit_price / entry_price - 1)
             net_ret = raw_ret - TRANSACTION_COST
             trades.append({
-                'Ticker': ticker, 'Entry_Bar': entry_bar_idx, 'Exit_Bar': t,
+                'Ticker': symbol, 'Entry_Bar': entry_bar_idx, 'Exit_Bar': t,
                 'Position': 'LONG' if position == 1 else 'SHORT',
                 'Entry_Price': entry_price, 'Exit_Price': exit_price,
                 'Regime': entry_regime, 'Net_Return': net_ret, 'Exit_Reason': 'REGIME_SHIFT'
@@ -129,11 +134,10 @@ def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None
         
         # 1.2 Candle Filter: Calculate Trigger Price for Majors
         trigger_price = None
-        if ticker in MAJORS_FIX_LIST and regime == "Trend Breakout":
+        if symbol in MAJORS_FIX_LIST and regime == "Trend Breakout":
             trigger_price = get_trigger_price(df.iloc[:t], regime, direction, current_atr)
 
         # ── Intra-step Simulation ──────────────────────────────────────────
-        # Check each bar until the next re-training step for TP/SL hits
         for sub_t in range(t, min(t + STEP_SIZE, total_bars)):
             high = df['High'].iloc[sub_t]
             low = df['Low'].iloc[sub_t]
@@ -141,21 +145,28 @@ def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None
 
             # If we had a position, check for exit
             if position != 0:
-                # --- WAR-TIME OVERRIDE: Time Limits (OIL: 4h, GOLD: 8h) ---
-                time_limit = 8 if ticker == "GC=F" else 4
-                if (ticker == "CL=F" or ticker == "GC=F") and (sub_t - entry_bar_idx) >= time_limit:
+                # --- WAR-TIME OVERRIDE: Time Limits (OIL: 4h) ---
+                if symbol == "CL=F" and (sub_t - entry_bar_idx) >= 4:
                     exit_reason = "TIME_EXIT"
                     exit_price = close
                     raw_ret = position * (exit_price / entry_price - 1)
                     net_ret = raw_ret - TRANSACTION_COST
                     trades.append({
-                        'Ticker': ticker, 'Entry_Bar': entry_bar_idx, 'Exit_Bar': sub_t,
+                        'Ticker': symbol, 'Entry_Bar': entry_bar_idx, 'Exit_Bar': sub_t,
                         'Position': 'LONG' if position == 1 else 'SHORT',
                         'Entry_Price': entry_price, 'Exit_Price': exit_price,
                         'Regime': entry_regime, 'Net_Return': net_ret, 'Exit_Reason': exit_reason
                     })
                     position = 0; entry_price = None
                     continue
+
+                # --- PARABOLIC SAR TRAILING STOPS (Efficiency Equilibrium) ---
+                if symbol in ["EURUSD=X", "GBPUSD=X"]:
+                    pnl_atr = (close - entry_price) / current_atr if position == 1 else (entry_price - close) / current_atr
+                    if pnl_atr > 0.5:
+                        move = pnl_atr * 0.5 * current_atr
+                        new_sl = entry_price + move if position == 1 else entry_price - move
+                        entry_sl = max(entry_sl, new_sl) if position == 1 else min(entry_sl, new_sl)
 
                 hit_tp = (position == 1 and high >= entry_tp) or (position == -1 and low <= entry_tp)
                 hit_sl = (position == 1 and low <= entry_sl) or (position == -1 and high >= entry_sl)
@@ -165,7 +176,7 @@ def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None
                     raw_ret = position * (exit_price / entry_price - 1)
                     net_ret = raw_ret - TRANSACTION_COST
                     trades.append({
-                        'Ticker': ticker,
+                        'Ticker': symbol,
                         'Entry_Bar': entry_bar_idx,
                         'Exit_Bar': sub_t,
                         'Position': 'LONG' if position == 1 else 'SHORT',
@@ -180,31 +191,20 @@ def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None
 
             # If flat, check if we should enter Based on the HMM signal from start of step
             if position == 0 and desired != 0:
-                # 1.2 Candle Logic: Differentiated Signal Expiry
                 can_enter = True
                 if trigger_price:
                     # --- SIGNAL EXPIRY (Differentiated: 3 bars FX / 2 bars Commodities) ---
-                    expiry_offset = 2 if ticker.endswith("=X") else 1 
+                    expiry_offset = 2 if symbol.endswith("=X") else 1 
                     if sub_t <= t + expiry_offset:
-                        if desired == 1: # LONG
-                            can_enter = (high >= trigger_price)
-                        else: # SHORT
-                            can_enter = (low <= trigger_price)
-                        
-                        if can_enter:
-                            # Trigger hit!
-                            pass
-                        elif sub_t == t + expiry_offset:
-                            # Trigger NOT hit within limit bars -> Cancel
-                            desired = 0
+                        can_enter = (high >= trigger_price) if desired == 1 else (low <= trigger_price)
+                        if not can_enter and sub_t == t + expiry_offset:
+                            desired = 0 # Cancel if not hit within limit
                     else:
-                        can_enter = False # Already past window
                         can_enter = False
                 
                 if can_enter:
                     # --- WAR-TIME OVERRIDE: SCALP MODE for OIL ---
-                    if ticker == "CL=F" and macro_bias == "SCALP_ONLY":
-                        # 1:1 Risk/Reward using ATR
+                    if symbol == "CL=F" and macro_bias_val == "SCALP_ONLY":
                         risk = current_atr * 2
                         entry_tp = current_price + (desired * risk)
                         entry_sl = current_price - (desired * risk)
@@ -216,11 +216,10 @@ def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None
                     entry_price = trigger_price if trigger_price else df['Close'].iloc[sub_t]
                     entry_regime = regime
                     entry_bar_idx = sub_t
-                    # Once entered, we don't re-enter in the same sub-loop until next main step
                     desired = 0 
 
     if not trades:
-        return {'ticker': ticker, 'trades': 0, 'total_return': 0,
+        return {'ticker': symbol, 'trades': 0, 'total_return': 0,
                 'win_rate': 0, 'max_drawdown': 0, 'sharpe': 0}
 
     df_trades = pd.DataFrame(trades)
@@ -242,7 +241,7 @@ def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None
         sharpe = 0
 
     return {
-        'ticker': ticker,
+        'ticker': symbol,
         'trades': len(trades),
         'total_return': total_return,
         'win_rate': win_rate,
@@ -259,24 +258,24 @@ def main():
     print(f"  Train Window: {TRAIN_WINDOW} bars | Step: {STEP_SIZE} bars")
     print("=" * 60)
 
-    # Fetch all data upfront as a batch (correct API: list of tickers)
+    # Fetch all data upfront as a batch
     print("\nFetching historical data for all pairs...")
-    all_data = fetch_data(CURRENCY_PAIRS, period=BACKTEST_PERIOD, interval=BACKTEST_INTERVAL)
+    all_market_data = fetch_data(CURRENCY_PAIRS, period=BACKTEST_PERIOD, interval=BACKTEST_INTERVAL)
     
     print("\nTracing macro context (Yields/Commodities)...")
-    macro_data = get_macro_data(interval=BACKTEST_INTERVAL, period=BACKTEST_PERIOD)
-    print(f"Data ready for {len(all_data)} pairs and macro context.\n")
+    macro_context = get_macro_data(interval=BACKTEST_INTERVAL, period=BACKTEST_PERIOD)
+    print(f"Data ready for {len(all_market_data)} pairs and macro context.\n")
 
-    all_results = []
+    backtest_summaries = []
     all_trade_logs = []
 
-    for ticker in CURRENCY_PAIRS:
-        if ticker not in all_data:
-            print(f"  {ticker}: SKIPPED (fetch failed)")
+    for active_symbol in CURRENCY_PAIRS:
+        if active_symbol not in all_market_data:
+            print(f"  {active_symbol}: SKIPPED (fetch failed)")
             continue
 
-        print(f"  Backtesting {ticker}...", end=" ", flush=True)
-        result = run_backtest_for_pair(ticker, all_data[ticker], macro_data=macro_data)
+        print(f"  Backtesting {active_symbol}...", end=" ", flush=True)
+        result = run_backtest_for_pair(active_symbol, all_market_data[active_symbol], macro_data=macro_context)
         if result is None:
             print("SKIPPED (insufficient data)")
             continue
@@ -289,7 +288,7 @@ def main():
             f"Sharpe: {result['sharpe']:.2f}"
         )
 
-        all_results.append({
+        backtest_summaries.append({
             'Ticker': result['ticker'],
             'Trades': result['trades'],
             'Total_Return_%': round(result['total_return'] * 100, 2),
@@ -301,40 +300,31 @@ def main():
         if result.get('trade_log') is not None:
             all_trade_logs.append(result['trade_log'])
 
-    if not all_results:
+    if not backtest_summaries:
         print("\nNo results to report.")
         return
 
     # ── Aggregate Summary ───────────────────────────────────────────────────
-    df_summary = pd.DataFrame(all_results).sort_values('Total_Return_%', ascending=False)
+    final_summary_df = pd.DataFrame(backtest_summaries).sort_values('Total_Return_%', ascending=False)
 
     print("\n" + "=" * 60)
     print("  AGGREGATE RESULTS (sorted by return)")
     print("=" * 60)
-    print(df_summary.to_string(index=False))
-
-    avg_return = df_summary['Total_Return_%'].mean()
-    avg_wr = df_summary['Win_Rate_%'].mean()
-    avg_dd = df_summary['Max_Drawdown_%'].mean()
-    avg_sharpe = df_summary['Sharpe_Ratio'].mean()
-    total_trades = df_summary['Trades'].sum()
+    print(final_summary_df.to_string(index=False))
 
     print("\n--- Portfolio Averages ---")
-    print(f"  Total Trades    : {total_trades}")
-    print(f"  Avg Return      : {avg_return:+.2f}%")
-    print(f"  Avg Win Rate    : {avg_wr:.1f}%")
-    print(f"  Avg Max Drawdown: {avg_dd:.2f}%")
-    print(f"  Avg Sharpe Ratio: {avg_sharpe:.2f}")
+    print(f"  Total Trades    : {final_summary_df['Trades'].sum()}")
+    print(f"  Avg Return      : {final_summary_df['Total_Return_%'].mean():+.2f}%")
+    print(f"  Avg Win Rate    : {final_summary_df['Win_Rate_%'].mean():.1f}%")
+    print(f"  Avg Max Drawdown: {final_summary_df['Max_Drawdown_%'].mean():.2f}%")
+    print(f"  Avg Sharpe Ratio: {final_summary_df['Sharpe_Ratio'].mean():.2f}")
 
     # ── Save Results ────────────────────────────────────────────────────────
-    out_file = 'backtest_results.csv'
-    df_summary.to_csv(out_file, index=False)
-
+    final_summary_df.to_csv('backtest_results.csv', index=False)
     if all_trade_logs:
-        all_trades_df = pd.concat(all_trade_logs, ignore_index=True)
-        all_trades_df.to_csv('backtest_trade_log.csv', index=False)
+        pd.concat(all_trade_logs, ignore_index=True).to_csv('backtest_trade_log.csv', index=False)
 
-    print(f"\n  Results saved to '{out_file}' and 'backtest_trade_log.csv'.")
+    print(f"\n  Results saved to 'backtest_results.csv' and 'backtest_trade_log.csv'.")
     print("=" * 60)
 
 
