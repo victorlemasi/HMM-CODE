@@ -28,7 +28,7 @@ warnings.filterwarnings("ignore")
 
 # Reuse existing project modules (read-only, no changes needed)
 from data_fetcher import fetch_data, get_macro_data
-from hmm_analysis import detect_breakout, get_dynamic_exit_levels, calculate_atr, get_trigger_price, calculate_z_score
+from hmm_analysis import detect_breakout, get_dynamic_exit_levels, calculate_atr, get_trigger_price, calculate_z_score, calculate_mahalanobis_distance
 from macro_bouncer import check_fundamental_gatekeeper, get_macro_weight
 from config import CURRENCY_PAIRS, MAJORS_FIX_LIST, WATCHDOG_TICKERS, WATCHDOG_JUMP_THRESHOLDS
 
@@ -97,9 +97,14 @@ def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None
         # --- SIMULATED WATCHDOG (Audit Sync) ---
         # If hourly Z-score > threshold, skip entry (Circuit Breaker)
         if ticker in WATCHDOG_TICKERS and desired != 0:
-            z_score = calculate_z_score(df['Close'].iloc[max(0, t-100):t+1])
+            if ticker == "GC=F":
+                # Multi-dim jump detection
+                score = calculate_mahalanobis_distance(df.iloc[max(0, t-20):t+1])
+            else:
+                score = calculate_z_score(df['Close'].iloc[max(0, t-100):t+1])
+                
             threshold = WATCHDOG_JUMP_THRESHOLDS.get(ticker, WATCHDOG_JUMP_THRESHOLDS['DEFAULT'])
-            if abs(z_score) > threshold:
+            if abs(score) > threshold:
                 desired = 0
 
         # Calculate levels for the NEW desired position
@@ -107,6 +112,20 @@ def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None
         macro_bias = check_fundamental_gatekeeper(ticker, df.index[t], macro_data) if desired != 0 else None
         is_scalp_active = (ticker == "CL=F" and macro_bias == "SCALP_ONLY")
         tp_level, sl_level = get_dynamic_exit_levels(regime, current_price, current_atr, direction, ticker=ticker, is_scalp=is_scalp_active)
+        
+        # --- REGIME SHIFT EXIT ---
+        # If we have a position and the NEW regime is not a tradeable one, exit immediately
+        if position != 0 and regime not in ('Trend Breakout', 'Mean Reversion'):
+            exit_price = current_price
+            raw_ret = position * (exit_price / entry_price - 1)
+            net_ret = raw_ret - TRANSACTION_COST
+            trades.append({
+                'Ticker': ticker, 'Entry_Bar': entry_bar_idx, 'Exit_Bar': t,
+                'Position': 'LONG' if position == 1 else 'SHORT',
+                'Entry_Price': entry_price, 'Exit_Price': exit_price,
+                'Regime': entry_regime, 'Net_Return': net_ret, 'Exit_Reason': 'REGIME_SHIFT'
+            })
+            position = 0; entry_price = None
         
         # 1.2 Candle Filter: Calculate Trigger Price for Majors
         trigger_price = None

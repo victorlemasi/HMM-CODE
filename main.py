@@ -43,15 +43,22 @@ class JumpWatchdog:
             return True
             
         from config import WATCHDOG_JUMP_THRESHOLDS
+        from hmm_analysis import calculate_mahalanobis_distance
         print("\n--- Running 1-Minute Jump Watchdog ---")
         wd_data = fetch_watchdog_data(self.tickers)
         for ticker, df in wd_data.items():
-            z_score = calculate_z_score(df['Close'])
+            if ticker == "GC=F":
+                # Use multi-dim distance for Gold (Price + Vol)
+                score = calculate_mahalanobis_distance(df)
+            else:
+                score = calculate_z_score(df['Close'])
+                
             # Use specific threshold or fallback to DEFAULT
             threshold = WATCHDOG_JUMP_THRESHOLDS.get(ticker, WATCHDOG_JUMP_THRESHOLDS['DEFAULT'])
             
-            if abs(z_score) > threshold:
-                print(f"!!! JUMP DETECTED on {ticker} (Z-Score: {z_score:.2f} | Limit: {threshold}) !!!")
+            if abs(score) > threshold:
+                metric_name = "Mahalanobis" if ticker == "GC=F" else "Z-Score"
+                print(f"!!! JUMP DETECTED on {ticker} ({metric_name}: {score:.2f} | Limit: {threshold}) !!!")
                 print("ACTION: Pausing all trading operations for 15 minutes.")
                 self.paused_until = datetime.now() + timedelta(minutes=15)
                 return True

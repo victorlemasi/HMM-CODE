@@ -6,7 +6,7 @@ from sklearn.cluster import KMeans
 from config import (
     HMM_COMPONENTS, ASSET_MAPPINGS, COMMODITY_TICKERS, YIELD_TICKERS, FRED_TICKERS,
     ATR_MULTIPLIER_FX, ATR_MULTIPLIER_GOLD, MAJORS_FIX_LIST,
-    CONFIRMATION_BUFFER, MAJORS_TP_MULTIPLIER
+    CONFIRMATION_BUFFER, MAJORS_TP_MULTIPLIER, ASSET_N_COMPONENTS, BB_SQUEEZE_THRESHOLD
 )
 
 def calculate_rsi(series, period=14):
@@ -47,6 +47,42 @@ def calculate_z_score(series, window=100):
     # Robust Z-score: 0.6745 helper makes it comparable to standard Z-score for normal dist
     z_score = 0.6745 * (current_return - median) / mad
     return z_score
+
+def calculate_mahalanobis_distance(df: pd.DataFrame, window: int = 20):
+    """
+    Multi-dimensional jump detection (Price + Yields + Vol).
+    """
+    if len(df) < window:
+        return 0.0
+    
+    # Select key variables for multi-dim distance
+    cols = ['Returns', 'Volatility', 'Range']
+    if 'Spec_Feat' in df.columns:
+        cols.append('Spec_Feat')
+    
+    data = df[cols].tail(window).values
+    if len(data) < len(cols):
+        return 0.0
+        
+    mean = np.mean(data, axis=0)
+    try:
+        cov = np.cov(data, rowvar=False)
+        inv_cov = np.linalg.inv(cov + np.eye(len(cols)) * 1e-6)
+    except np.linalg.LinAlgError:
+        return 0.0
+        
+    current = data[-1]
+    diff = current - mean
+    dist = np.sqrt(np.dot(np.dot(diff, inv_cov), diff.T))
+    return float(dist)
+
+def calculate_bb_width(df, period=20):
+    sma = df['Close'].rolling(window=period).mean()
+    std = df['Close'].rolling(window=period).std()
+    upper = sma + (2 * std)
+    lower = sma - (2 * std)
+    width = (upper - lower) / (sma + 1e-9)
+    return width
 
 def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = None, model=None):
     """
@@ -152,8 +188,10 @@ def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = Non
     scaler = StandardScaler()
     features_scaled = scaler.fit_transform(features)
     
-    # 2. 3-State HMM (Daily Retraining logic: fit if model not provided)
-    best_n = 3
+    # 2. Asset-Specific HMM Selection
+    best_n = ASSET_N_COMPONENTS.get(ticker, ASSET_N_COMPONENTS.get('DEFAULT', 3))
+    
+    # 2.1 Fit HMM (Daily Retraining logic: fit if model not provided)
     if model is None:
         try:
             model = GaussianHMM(
@@ -191,10 +229,17 @@ def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = Non
             km_variances[k] = features_scaled[mask].var(axis=0).sum()
 
     # Sort KMeans clusters: low variance = Consolidation, high = Trend Breakout
-    km_sorted = np.argsort(km_variances)   # [lowest_var_cluster, mid, highest]
-    km_rank = {int(km_sorted[0]): "Consolidation",
-               int(km_sorted[1]): "Mean Reversion",
-               int(km_sorted[2]): "Trend Breakout"}
+    km_sorted = np.argsort(km_variances)   # [lowest_var_cluster, ..., highest]
+    
+    if best_n == 4 and ticker == 'GC=F':
+        km_rank = {int(km_sorted[0]): "Consolidation",
+                   int(km_sorted[1]): "Mean Reversion",
+                   int(km_sorted[2]): "Trend Breakout",
+                   int(km_sorted[3]): "Safe Haven Spike"}
+    else:
+        km_rank = {int(km_sorted[0]): "Consolidation",
+                   int(km_sorted[1]): "Mean Reversion",
+                   int(km_sorted[2]): "Trend Breakout"}
 
     # Build final label map: HMM state → regime string (via KMeans cluster)
     labels = {int(i): km_rank[int(hmm_to_km[i])] for i in range(best_n)}
@@ -219,14 +264,20 @@ def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = Non
         mu_break = state_metrics[break_id]['ret']
         current_atr_norm = float(df['ATR_Norm'].iloc[-1])
         
-        # Determine multiplier (K) based on asset type
-        # In this bot, tickers like 'GC=F' or 'CL=F' are commodities, others are FX
-        is_commodity = ticker in ['GC=F', 'CL=F'] or ('=F' in str(ticker))
-        k = ATR_MULTIPLIER_GOLD if is_commodity else ATR_MULTIPLIER_FX
+        # EURUSD Volatility Squeeze Filter
+        if ticker == 'EURUSD=X':
+            bb_width = calculate_bb_width(df).iloc[-1]
+            if bb_width > BB_SQUEEZE_THRESHOLD:
+                regime = "Consolidation"
         
-        mu_diff_threshold = current_atr_norm * k
-        if abs(mu_break - mu_cons) < mu_diff_threshold:
-            regime = "Consolidation"
+        # Determine multiplier (K) based on asset type
+        if regime == "Trend Breakout": # Check again if not filtered by BB
+            is_commodity = ticker in ['GC=F', 'CL=F'] or ('=F' in str(ticker))
+            k = ATR_MULTIPLIER_GOLD if is_commodity else ATR_MULTIPLIER_FX
+            
+            mu_diff_threshold = current_atr_norm * k
+            if abs(mu_break - mu_cons) < mu_diff_threshold:
+                regime = "Consolidation"
 
     is_breakout = (regime == "Trend Breakout")
     direction = "None"

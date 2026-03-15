@@ -77,7 +77,15 @@ ASSET_MAPPINGS = {
     'CL=F':     {'type': 'commodity_inverse', 'key': 'DXY'} # Oil inverse to Dollar
 }
 
+# Asset-Specific HMM Components
+ASSET_N_COMPONENTS = {
+    'GC=F': 4,   # Gold: Consolidation, Mean Reversion, Trend, Safe Haven Spike
+    'DEFAULT': 3
+}
+
 # 1.2 Candle Logic for Majors
 MAJORS_FIX_LIST = ['EURUSD=X', 'GBPUSD=X']
 CONFIRMATION_BUFFER = 0.2
 MAJORS_TP_MULTIPLIER = 3.0
+BB_SQUEEZE_THRESHOLD = 0.05 # EURUSD only breakouts if squeeze < 5% of price
+TIPS_TICKER = 'DFII10' # FRED Real Yield

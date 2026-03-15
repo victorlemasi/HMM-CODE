@@ -31,8 +31,20 @@ def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
         # Daily momentum (approx 24h/24 bars)
         dxy_change = (current_dxy - dxy_slice['Close'].iloc[-25]) / dxy_slice['Close'].iloc[-25]
 
-        # --- GOLD OVERRIDE ---
+        # --- GOLD OVERRIDE: Real Yield (TIPS) & Nominal Yields ---
         if ticker == "GC=F":
+            from config import TIPS_TICKER
+            tips_df = macro_data.get(TIPS_TICKER)
+            if tips_df is not None and not tips_df.empty:
+                tips_slice = tips_df[tips_df.index <= current_time]
+                if len(tips_slice) >= 2:
+                    curr_tips = tips_slice['Close'].iloc[-1]
+                    prev_tips = tips_slice['Close'].iloc[-2]
+                    # If Real Yields are rising, it's aggressively Bearish for Gold
+                    if curr_tips > prev_tips:
+                        return "BEARISH_ONLY"
+            
+            # Fallback to Nominal Yield and DXY
             if yield_df is not None and not yield_df.empty:
                 yield_slice = yield_df[yield_df.index <= current_time]
                 if len(yield_slice) >= 2:
