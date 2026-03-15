@@ -273,7 +273,7 @@ def main():
                 breakout_directions[pair] = f"{raw_direction} (SHOCK PAUSE)"
                 direction = "None"
             elif veto_flag and raw_direction != "None":
-                tag = f" ({veto_reason})" if veto_reason else " (WARNING)"
+                tag = f" (WARNING: {veto_reason})" if veto_reason else " (WARNING)"
                 breakout_directions[pair] = f"{raw_direction}{tag}"
                 direction = "None"
             else:
