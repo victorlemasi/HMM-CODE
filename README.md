@@ -11,31 +11,26 @@ A quantitative tool to scan multiple currency pairs using Clustering for asset g
 - **Geopolitical Risk (GPR) Overlay**: Integrates the Geopolitical Risk Index to adjust risk thresholds.
 - **Visualization**: Generates a correlation heatmap of the clusters.
 
-## Fundamental Gatekeepers (The Bouncer System)
+## Stochastic Logic & Macro Framework
 
-The scanner utilizes a "Macro-First" approach to filter technical signals. Every technical breakout is passed through the `Fundamental Gatekeeper` in `backtest.py` to ensure it aligns with global market regimes.
+The scanner has transitioned from Static Logic to **Stochastic/Adaptive Logic**, allowing it to handle market shocks and macro-economic regime shifts.
 
-### 1. Currency Gatekeepers
-| Filter | Logic | Trigger | Action |
-| :--- | :--- | :--- | :--- |
-| **DXY Velocity** | Inter-day Dollar strength | DXY > 100.40 OR Daily Spike > 0.25% | Blocks all **LONG** Majors (EUR, GBP, AUD) |
-| **RBNZ Bias** | Automated Carry Protection | NZ 10Y Yield > 3.0% (Hawkish) | Blocks **SHORT** NZD positions (e.g. NZDJPY Short) |
-| **Yield Spread Gate** | Base vs US Yield Momentum | Δ-Spread > 5bps (5-day window) | Blocks trades if spread moves against technical signal |
-| **Oil-JPY ATR** | Energy-driven Yen shocks | Oil ATR Spike > 2% (4-hour window) | Blocks **LONG JPY** positions (e.g. Short USDJPY) |
+### 1. Jump-Diffusion Watchdog (Lévy Process)
+A high-frequency 1-minute "Watchdog" monitors market shocks in real-time.
+- **Circuit Breaker**: If price moves > 3-4.5 Standard Deviations (Z-Score) in 1 minute, the bot pauses all trading for 15 minutes.
+- **Asset Specificity**: Thresholds are calibrated by asset (FX: 3.0, Gold: 3.5, Oil: 4.5) to account for natural volatility.
 
-### 2. Commodity Gatekeepers
-| Asset | Filter | Logic | Action |
-| :--- | :--- | :--- | :--- |
-| **Gold (GC=F)** | **Real Yield Trap** | DXY > 100.20 AND Yields Rising | Blocks Gold **LONGS** |
-| **Gold (GC=F)** | **Time Constraint** | Period > 4 Hours | **Hard Exit** (Capture geopolitical spikes only) |
-| **Oil (CL=F)** | **DXY Stress Mode** | DXY > 100.50 | Switches to **Scalp Mode** (1:1 Risk/Reward) |
-| **Oil (CL=F)** | **Energy Wall** | Brent Crude > $98/bbl | Portfolio-wide Stop tightening |
+### 2. Macro-Weighted Confidence
+Technical signals from the HMM are weighted by multi-dimensional macro factors before execution:
+- **Policy Rate Differentials**: Signal confidence is boosted (+20%) or penalized (-20%) based on Central Bank hawkishness/dovishness (FRED Data).
+- **DXY Inverse Coupling**: Oil (`CL=F`) signals are weighted against US Dollar momentum to avoid "Macro Traps."
+- **Confidence Threshold**: Any signal with an adjusted probability < 0.6 is automatically vetoed (labeled with ⚠️ in output).
 
-### 3. Data Sources & Fallbacks
-To ensure the Bouncer always has data, we use a hybrid fetching system:
-- **Priority 1 (Live)**: Yahoo Finance Tickers (`^NZ10`, `^TNX`, `DX-Y.NYB`).
-- **Priority 2 (Proxies)**: Bond ETFs for UK/GER yields (`IGLT.L`, `IEGA.DE`) where direct yield tickers are unstable.
-- **Priority 3 (Historical)**: Direct **FRED CSV** downloads for robust backtesting coverage (e.g. `IRLTLT01NZM156N`).
+### 3. Data Sources (FRED & Yahoo Hybrid)
+We use a robust fetching architecture to bypass Yahoo Finance yield instability:
+- **Central Bank Rates (FRED)**: `FEDFUNDS` (USD), `ECBMRRFR` (EUR), `IRSTCI01JPM156N` (JPY), etc.
+- **10Y Yields (FRED)**: `IRLTLT01DEM156N` (GER), `IRLTLT01GBM156N` (UK), `IRLTLT01NZM156N` (NZ).
+- **Technical/Volatility (Yahoo)**: 1h price bars for technical clustering and HMM modeling.
 
 ## Installation
 
