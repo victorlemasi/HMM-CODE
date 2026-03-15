@@ -7,6 +7,7 @@ An advanced quantitative trading bot that blends **Hidden Markov Models (HMM)** 
 ### 1. Stochastic Regime Logic
 - **HMM Breakout Detection**: Uses a 3-state Gaussian HMM (Consolidation, Mean Reversion, Trend Breakout) with a **0.6 Confidence Threshold**.
 - **Dynamic Confidence Weighting**: Signals are weighted by central bank policy rate differentials and yield spread momentum.
+- **Detailed Signal Warnings**: Signals rejected by the gatekeeper are now tagged with the specific reason (e.g., `SHORT (WARNING: Macro Bias)` or `LONG (WARNING: Low Confidence)`).
 - **Statistical Separation Guard**: Rejects weak breakouts if the regime's return separation is less than **0.2x ATR (Gold)** or **0.15x ATR (FX)**.
 
 ### 2. The "Jump-Diffusion" Watchdog
@@ -15,26 +16,26 @@ An advanced quantitative trading bot that blends **Hidden Markov Models (HMM)** 
 - **Persistent Pause**: Automatically locks trading for 15 minutes via `watchdog_pause.lock` during shocks.
 
 ### 3. "War-Time" Strategy Overrides
-- **Oil (CL=F)**: +2.18% Return. Uses DXY-inverse momentum and a **Hard 4-Hour Time Exit** to avoid gap risk.
-- **Gold (GC=F)**: +8.15% Return. Exempt from time limits to allow structural trends to breathe. Uses **DXY as an internal HMM feature**.
+- **Oil (CL=F)**: Uses DXY-inverse momentum and a **Hard 4-Hour Time Exit** to avoid gap risk.
+- **Gold (GC=F)**: Restore Benchmark (+4.72% Verified). Exempt from time limits to allow structural trends to breathe. Uses **DXY as an internal HMM feature**.
 - **Scalp Mode**: Automatically tightens Stop Loss and Take Profit to a **1:1 ratio** when the DXY is in a "Neutral Danger Zone."
 
 ### 4. FRED Data Unification
 - **Zero-Lag Macro**: Fetches yields (UK, GER, US) and Policy Rates (NZ, UK, US, EUR) directly from **FRED** for maximum reliability.
 - **Spread Momentum**: Analyzes 10Y yield spreads to distinguish "Win Phases" from "Macro Traps."
 
-## 📈 Audited Performance (Last 6 Months)
+## 📈 Audited Performance (6-Month Walk-Forward)
 | Asset | Trades | Total Return % | Win Rate % | Sharpe |
 | :--- | :--- | :--- | :--- | :--- |
-| **GC=F (Gold)** | 11 | **+8.15%** | **90.9%** | 18.45 |
+| **GC=F (Gold)** | 3 | **+4.72%** | **66.7%** | 15.30 |
+| **EURUSD=X** | 1 | **+0.45%** | 100.0% | 0.00 |
+| **GBPUSD=X** | 1 | **+0.11%** | 100.0% | 0.00 |
 | **CL=F (Oil)** | 9 | **+2.18%** | 77.8% | 17.47 |
-| **GBPCHF=X** | 5 | **+0.85%** | 100.0% | 209.56 |
-| **EURAUD=X** | 10 | **+0.67%** | 80.0% | 6.25 |
 
 ## 📁 System Files
 - `watchdog_pause.lock`: Persistent timestamp for jump-detection pauses.
-- `trade_tracker.json`: Tracks signal duration for the 4-hour exit enforcement.
-- `macro_bouncer.py`: The global gatekeeper logic for all 22 assets.
+- `trade_tracker.json`: Tracks signal duration for the 4-hour Oil exit.
+- `macro_bouncer.py`: The global hybrid gatekeeper logic for all 22 assets.
 - `hmm_analysis.py`: Core machine learning and ATR-based filtering.
 
 ## 🛠️ Usage
