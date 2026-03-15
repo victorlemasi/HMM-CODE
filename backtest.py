@@ -68,7 +68,17 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None
         train_slice = df.iloc[t - TRAIN_WINDOW:t].copy()
 
         try:
-            is_breakout, direction, regime, _, current_atr, prob = detect_breakout(train_slice, ticker=symbol, macro_data=macro_data)
+            # --- SIMULATED MAHALANOBIS WATCHDOG (Volatility Veto) ---
+            if symbol == "GC=F":
+                from config import GOLD_MAHALANOBIS_THRESHOLD
+                m_dist = calculate_mahalanobis_distance(train_slice, window=20)
+                if m_dist > GOLD_MAHALANOBIS_THRESHOLD:
+                    # Logic: We treat this as "no signal" if volatility is unhealthy
+                    is_breakout, direction, regime, _, current_atr, prob = False, "None", "Consolidation", 0, 0, 0
+                else:
+                    is_breakout, direction, regime, _, current_atr, prob = detect_breakout(train_slice, ticker=symbol, macro_data=macro_data)
+            else:
+                is_breakout, direction, regime, _, current_atr, prob = detect_breakout(train_slice, ticker=symbol, macro_data=macro_data)
         except Exception:
             continue
 
@@ -145,8 +155,8 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None
 
             # If we had a position, check for exit
             if position != 0:
-                # --- WAR-TIME OVERRIDE: Time Limits (OIL: 4h, GOLD: 8h) ---
-                time_limit = 8 if symbol == "GC=F" else 4
+                # --- WAR-TIME OVERRIDE: Time Limits (OIL: 4h, GOLD: 12h) ---
+                time_limit = 12 if symbol == "GC=F" else 4
                 if (symbol == "CL=F" or symbol == "GC=F") and (sub_t - entry_bar_idx) >= time_limit:
                     exit_reason = "TIME_EXIT"
                     exit_price = close

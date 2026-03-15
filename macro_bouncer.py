@@ -81,10 +81,23 @@ def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
 
             # Lunch Penalty: This will be handled in main.py/backtest.py by checking confidence
 
-        # --- EFFICIENCY EQUILIBRIUM: Major Basket Sync ---
-        if ticker in ["EURUSD=X", "GBPUSD=X"]:
+        # --- EFFICIENCY EQUILIBRIUM: GBPUSD DXY Inverse Filter ---
+        if ticker == "GBPUSD=X":
+            from config import DXY_ROC_WINDOW
             dxy_df = macro_data.get('DX-Y.NYB')
-            other_major = "GBPUSD=X" if ticker == "EURUSD=X" else "EURUSD=X"
+            if dxy_df is not None and not dxy_df.empty:
+                dxy_slice = dxy_df[dxy_df.index <= current_time]
+                if len(dxy_slice) >= DXY_ROC_WINDOW:
+                    dxy_roc = dxy_slice['Close'].iloc[-1] - dxy_slice['Close'].iloc[-DXY_ROC_WINDOW]
+                    # If DXY is rising (ROC >= 0), idiosyncratic GBP strength is untrustworthy for Longs
+                    if dxy_roc >= 0:
+                        print(f"  [MACRO] GBPUSD Long Veto: DXY Strength (ROC: {dxy_roc:.4f})")
+                        return "BEARISH_ONLY"
+
+        # --- EFFICIENCY EQUILIBRIUM: Major Basket Sync ---
+        if ticker == "EURUSD=X":
+            dxy_df = macro_data.get('DX-Y.NYB')
+            other_major = "GBPUSD=X"
             other_df = macro_data.get(other_major)
             
             if dxy_df is not None and not dxy_df.empty and other_df is not None and not other_df.empty:
@@ -95,12 +108,10 @@ def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
                     dxy_mom = dxy_slice['Close'].iloc[-1] - dxy_slice['Close'].iloc[-3]
                     other_mom = other_slice['Close'].iloc[-1] - other_slice['Close'].iloc[-3]
                     
-                    # Logic: Before EURUSD Long, need Bearish DXY and Bullish GBP
-                    # If DXY is rising, it's a "Liquidity Sweep" trap. Veto Longs.
                     if dxy_mom > 0.05:
-                        return "BEARISH_ONLY" # Only allow shorts if DXY is rising
-                    if other_mom < 0: # Lack of basket sync
-                         return "BEARISH_ONLY" # Veto technical longs if others are weak
+                        return "BEARISH_ONLY" 
+                    if other_mom < 0:
+                         return "BEARISH_ONLY"
 
         # --- GOLD OVERRIDE: Real Yield (TIPS) & Nominal Yields ---
         if ticker == "GC=F":

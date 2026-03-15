@@ -347,10 +347,15 @@ def get_dynamic_exit_levels(regime, price, atr, direction, ticker=None, is_scalp
             tp_dist = atr * MAJORS_TP_MULTIPLIER
             sl_dist = atr * 1.2 # Give it room to breathe
         else:
-            tp_dist = atr * 2.0 # Standard TP for successful pairs (was implicit 3.0 before, but keeping standard 2.0x tp_dist or wait, let's look at what standard was. User says winners have 1.0 Candle / 2.0x TP logic. So changing to 2.0)
+            tp_dist = atr * 2.0 # Standard TP
             sl_dist = atr * 1.0 # Standard tight stop
     else:
         return None, None
+
+    # --- GOLD ASYMMETRY OVERRIDE ---
+    if ticker == "GC=F":
+        from config import GOLD_TP_MULTIPLIER
+        tp_dist = atr * GOLD_TP_MULTIPLIER
 
     if direction == "LONG":
         tp = price + tp_dist
