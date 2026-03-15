@@ -145,8 +145,9 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None
 
             # If we had a position, check for exit
             if position != 0:
-                # --- WAR-TIME OVERRIDE: Time Limits (OIL: 4h) ---
-                if symbol == "CL=F" and (sub_t - entry_bar_idx) >= 4:
+                # --- WAR-TIME OVERRIDE: Time Limits (OIL: 4h, GOLD: 8h) ---
+                time_limit = 8 if symbol == "GC=F" else 4
+                if (symbol == "CL=F" or symbol == "GC=F") and (sub_t - entry_bar_idx) >= time_limit:
                     exit_reason = "TIME_EXIT"
                     exit_price = close
                     raw_ret = position * (exit_price / entry_price - 1)
@@ -161,7 +162,7 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None
                     continue
 
                 # --- PARABOLIC SAR TRAILING STOPS (Efficiency Equilibrium) ---
-                if symbol in ["EURUSD=X", "GBPUSD=X"]:
+                if symbol == "EURUSD=X":
                     pnl_atr = (close - entry_price) / current_atr if position == 1 else (entry_price - close) / current_atr
                     if pnl_atr > 0.5:
                         move = pnl_atr * 0.5 * current_atr

@@ -201,8 +201,8 @@ def main():
                 pass
             
             # --- EFFICIENCY EQUILIBRIUM: Confidence Thresholds ---
-            from config import MAJORS_MIN_CONFIDENCE, LUNCH_ZONE
-            conf_thresh = MAJORS_MIN_CONFIDENCE if pair in MAJORS_FIX_LIST else 0.7
+            from config import MAJORS_MIN_CONFIDENCE, EURUSD_FIX_LIST, LUNCH_ZONE
+            conf_thresh = MAJORS_MIN_CONFIDENCE if pair in EURUSD_FIX_LIST else 0.7
             
             # London Lunch Penalty
             hour_utc = current_time.hour
@@ -239,7 +239,7 @@ def main():
                         del new_tracker[pair]
                     
                     # --- EFFICIENCY EQUILIBRIUM: Progressive SAR-style Stops ---
-                    if pair in MAJORS_FIX_LIST and direction != "None": # Only apply if signal is still active
+                    if pair in EURUSD_FIX_LIST and direction != "None": # Only apply if signal is still active
                         pnl_atr = (current_price - new_tracker[pair]['entry']) / current_atr if direction == "LONG" else (new_tracker[pair]['entry'] - current_price) / current_atr
                         if pnl_atr > 0.5:
                             # Tighten SL as price moves
