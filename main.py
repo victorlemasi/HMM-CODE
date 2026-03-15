@@ -1,5 +1,7 @@
 import pandas as pd
 import time
+import json
+import os
 from datetime import datetime, timedelta
 from data_fetcher import fetch_data, get_returns_matrix, get_macro_data, fetch_watchdog_data
 from clustering import cluster_assets, plot_clusters
@@ -15,6 +17,21 @@ from gpr_fetcher import fetch_latest_gpr
 from sentiment_fetcher import fetch_market_sentiment
 from rebalancer import diversify_signals, find_correlation_hedges, get_exit_recommendations
 from macro_bouncer import check_fundamental_gatekeeper, get_macro_weight
+
+TRACKER_FILE = 'trade_tracker.json'
+
+def load_tracker():
+    if os.path.exists(TRACKER_FILE):
+        try:
+            with open(TRACKER_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+def save_tracker(data):
+    with open(TRACKER_FILE, 'w') as f:
+        json.dump(data, f, indent=4)
 
 class JumpWatchdog:
     def __init__(self, tickers):
@@ -99,6 +116,8 @@ def check_macro_alignment(ticker, direction, macro_data):
 
 def main():
     watchdog = JumpWatchdog(WATCHDOG_TICKERS)
+    tracked_trades = load_tracker()
+    new_tracker = {} # Refresh to only keep active trades
     
     # 0. Global Sentiment Assessment
     print("\n--- Market Sentiment & Risk Assessment ---")
@@ -142,13 +161,17 @@ def main():
             is_breakout, direction, regime, _, current_atr, prob = detect_breakout(df, ticker=pair, macro_data=macro_data)
             regime_results[pair] = regime
             
-            # --- APPLY MACRO WEIGHTING ---
-            macro_weight = get_macro_weight(pair, direction, macro_data)
-            adjusted_prob = prob * macro_weight
+            # --- APPLY THE FUNDAMENTAL BOUNCER (Global Gatekeeper) ---
+            current_time = df.index[-1]
+            gatekeeper_status = check_fundamental_gatekeeper(pair, current_time, macro_data)
             
             # Calculate Dynamic Exit Levels
             current_price = df['Close'].iloc[-1]
-            tp, sl = get_dynamic_exit_levels(regime, current_price, current_atr, direction, ticker=pair)
+            is_scalp = (pair == "CL=F" and gatekeeper_status == "SCALP_ONLY")
+            tp, sl = get_dynamic_exit_levels(regime, current_price, current_atr, direction, ticker=pair, is_scalp=is_scalp)
+            
+            if is_scalp:
+                print(f"  {pair} | SCALP MODE: Applied 1:1 ATR targets.")
             
             # Calculate 1.2 Candle Trigger for Majors
             trigger = None
@@ -156,9 +179,9 @@ def main():
             if pair in MAJORS_FIX_LIST and regime == "Trend Breakout":
                 macro_phase = check_macro_alignment(pair, direction, macro_data)
             
-            # --- APPLY THE FUNDAMENTAL BOUNCER (Global Gatekeeper) ---
-            current_time = df.index[-1]
-            gatekeeper_status = check_fundamental_gatekeeper(pair, current_time, macro_data)
+            # --- MACRO WEIGHTING (Applied AFTER gatekeeper) ---
+            macro_weight = get_macro_weight(pair, direction, macro_data)
+            adjusted_prob = prob * macro_weight
             
             if gatekeeper_status == "BEARISH_ONLY" and direction == "LONG":
                 print(f"  [VETO] {pair} LONG signal rejected: Macro Bias.")
@@ -167,10 +190,11 @@ def main():
                 print(f"  [VETO] {pair} SHORT signal rejected: Macro Bias.")
                 direction = "⚠️SHORT"
             elif gatekeeper_status == "SCALP_ONLY" and pair == "CL=F":
-                print(f"  {pair} | WAR-TIME SCALP MODE: Tightening TP/SL.")
+                # Print notice but logic is handled above in TP/SL calculation
+                pass
             
-            # --- CONFIDENCE THRESHOLD ---
-            if adjusted_prob < 0.6 and direction not in ["None", "⚠️LONG", "⚠️SHORT"]:
+            # --- CONFIDENCE THRESHOLD (Sophistication Upgrade: 0.7) ---
+            if adjusted_prob < 0.7 and direction not in ["None", "⚠️LONG", "⚠️SHORT"]:
                  print(f"  [VETO] {pair} Signal Rejected: Low Macro-Adjusted Confidence ({adjusted_prob:.2f})")
                  direction = f"⚠️{direction}"
 
@@ -183,6 +207,28 @@ def main():
             
             # Update summary direction AFTER all filters
             breakout_directions[pair] = direction
+            
+            # --- TRACKING LOGIC ---
+            if direction in ["LONG", "SHORT"]:
+                # If already tracked, carry over entry time
+                if pair in tracked_trades and tracked_trades[pair]['dir'] == direction:
+                    new_tracker[pair] = tracked_trades[pair]
+                    new_tracker[pair]['bars_active'] = tracked_trades.get(pair, {}).get('bars_active', 0) + 1
+                    
+                    # --- SIGNAL EXPIRY (Differentiated: 3 bars FX / 2 bars Commodities) ---
+                    expiry_limit = 3 if pair.endswith("=X") else 2
+                    if new_tracker[pair]['bars_active'] >= expiry_limit:
+                        print(f"  [SIGNAL EXPIRED] {pair} failed to trigger within {expiry_limit} bars.")
+                        direction = "None"
+                        del new_tracker[pair]
+                else:
+                    # New Entry
+                    new_tracker[pair] = {
+                        'dir': direction,
+                        'entry_time': datetime.now().isoformat(),
+                        'regime': regime,
+                        'bars_active': 0
+                    }
             
             # Diagnostic: show current state
             msg = f"  {pair:<12} | Regime: {regime:<15} | Dir: {direction} | Conf: {adjusted_prob:.2f}"
@@ -219,6 +265,22 @@ def main():
     # Diversification & Hedging — use updated regime names
     diversified = diversify_signals(summary[summary['Regime'] == 'Trend Breakout'])
     exits = get_exit_recommendations(summary)
+    
+    # --- WAR-TIME TIME EXITS (Audit Sync) ---
+    for pair, info in tracked_trades.items():
+        if pair not in ["CL=F", "GC=F"]:
+            continue
+        entry_time = datetime.fromisoformat(info['entry_time'])
+        if datetime.now() - entry_time > timedelta(hours=4):
+            print(f"!!! WAR-TIME TIME EXIT: {pair} has been open for > 4 hours. !!!")
+            if pair not in exits:
+                exits.append(pair)
+            # Remove from new tracker to "forget" this trade
+            if pair in new_tracker:
+                del new_tracker[pair]
+
+    save_tracker(new_tracker)
+    
     hedges = find_correlation_hedges(summary[summary['Regime'] == 'Trend Breakout'])
     
     print("\n--- Raw Analysis (All Pairs) ---", flush=True)

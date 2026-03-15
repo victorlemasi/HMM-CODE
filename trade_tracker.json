@@ -1,1 +1,14 @@
-{}
+{
+    "USDCAD=X": {
+        "dir": "SHORT",
+        "entry_time": "2026-03-15T12:26:41.687489",
+        "regime": "Mean Reversion",
+        "bars_active": 0
+    },
+    "EURAUD=X": {
+        "dir": "SHORT",
+        "entry_time": "2026-03-15T12:26:45.904071",
+        "regime": "Mean Reversion",
+        "bars_active": 0
+    }
+}

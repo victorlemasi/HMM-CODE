@@ -26,18 +26,27 @@ def calculate_atr(df, period=14):
 
 def calculate_z_score(series, window=100):
     """
-    Calculates the Volatility-Adjusted Z-Score for jump detection.
+    Robust Z-Score calculation using Median Absolute Deviation (MAD).
+    Financial returns are fat-tailed; MAD is less sensitive to the very jumps we try to detect.
     """
     if len(series) < 2:
         return 0.0
     returns = series.pct_change().dropna()
     if returns.empty:
         return 0.0
-    mean = returns.rolling(window=window).mean().iloc[-1]
-    std = returns.rolling(window=window).std().iloc[-1]
-    if std == 0 or np.isnan(std):
+    
+    # Use sliding window for local context
+    relevant_returns = returns.tail(window)
+    median = relevant_returns.median()
+    mad = (relevant_returns - median).abs().median()
+    
+    if mad == 0 or np.isnan(mad):
         return 0.0
-    return (returns.iloc[-1] - mean) / std
+        
+    current_return = returns.iloc[-1]
+    # Robust Z-score: 0.6745 helper makes it comparable to standard Z-score for normal dist
+    z_score = 0.6745 * (current_return - median) / mad
+    return z_score
 
 def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = None, model=None):
     """
@@ -232,13 +241,17 @@ def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = Non
     
     return is_breakout, direction, regime, current_state_id, current_atr, current_prob
 
-def get_dynamic_exit_levels(regime, price, atr, direction, ticker=None):
+def get_dynamic_exit_levels(regime, price, atr, direction, ticker=None, is_scalp=False):
     """
     State-based Exit Strategy (ATR-keyed):
     - Mean Reversion: Aim for 1.0x ATR profit with 1.5x ATR stop buffer.
     - Trend Breakout: Aim for 3.0x ATR 'Big Move' with tight 1.0x ATR stop.
+    - Scalp Mode: Force 1:1 risk/reward using ATR.
     """
-    if regime == "Mean Reversion":
+    if is_scalp:
+        tp_dist = atr * 2.0
+        sl_dist = atr * 2.0
+    elif regime == "Mean Reversion":
         tp_dist = atr * 1.0
         sl_dist = atr * 1.5
     elif regime == "Trend Breakout":

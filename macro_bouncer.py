@@ -117,9 +117,10 @@ def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
         return "ALLOW"
 def get_macro_weight(ticker: str, direction: str, macro_data: dict) -> float:
     """
-    Returns a confidence weight (e.g., 1.2 or 0.8) based on Policy Rate differentials.
+    Returns a confidence multiplier based on Policy Rate differentials and MOMENTUM.
+    Formula: (1 + Differential_Score) where Score considers both levels and hawks/doves direction.
     """
-    if macro_data is None or direction == "None":
+    if macro_data is None or direction in ["None", "⚠️LONG", "⚠️SHORT"]:
         return 1.0
         
     from config import POLICY_RATE_TICKERS, ASSET_MAPPINGS
@@ -129,46 +130,46 @@ def get_macro_weight(ticker: str, direction: str, macro_data: dict) -> float:
         
     mapping = ASSET_MAPPINGS[ticker]
     m_type = mapping['type']
+    score = 0.0
     
-    # --- TYPE 1: FX Macro (Policy Rate Differentials) ---
+    # --- TYPE 1: FX Macro (Policy Rate Levels + Momentum) ---
     if m_type == 'macro':
-        base_currency = mapping['base_currency'] if 'base_currency' in mapping else ticker[:3]
-        quote_currency = mapping['quote_currency'] if 'quote_currency' in mapping else ticker[3:6]
+        base_currency = mapping.get('base_currency', ticker[:3])
+        quote_currency = mapping.get('quote_currency', ticker[3:6])
         
         base_rate_ticker = POLICY_RATE_TICKERS.get(base_currency)
         quote_rate_ticker = POLICY_RATE_TICKERS.get(quote_currency)
         
-        if not base_rate_ticker or not quote_rate_ticker:
-            return 1.0
+        if base_rate_ticker and quote_rate_ticker:
+            base_df = macro_data.get(base_rate_ticker)
+            quote_df = macro_data.get(quote_rate_ticker)
             
-        base_df = macro_data.get(base_rate_ticker)
-        quote_df = macro_data.get(quote_rate_ticker)
-        
-        if base_df is None or quote_df is None or base_df.empty or quote_df.empty:
-            return 1.0
+            if base_df is not None and quote_df is not None and not base_df.empty and not quote_df.empty:
+                # 1. Current Levels (Carry Advantage)
+                curr_base = base_df['Close'].iloc[-1]
+                curr_quote = quote_df['Close'].iloc[-1]
+                diff_factor = 0.1 if curr_base > curr_quote else (-0.1 if curr_base < curr_quote else 0.0)
+                
+                # 2. Rate Momentum (Hawkish/Dovish Shift - 24 bar window)
+                base_lookback = base_df['Close'].iloc[-24] if len(base_df) >= 24 else base_df['Close'].iloc[0]
+                quote_lookback = quote_df['Close'].iloc[-24] if len(quote_df) >= 24 else quote_df['Close'].iloc[0]
+                
+                base_mom = 0.1 if curr_base > base_lookback else (-0.1 if curr_base < base_lookback else 0.0)
+                quote_mom = 0.1 if curr_quote > quote_lookback else (-0.1 if curr_quote < quote_lookback else 0.0)
+                
+                # Total Score: (+) favors base currency (Pair Long), (-) favors quote
+                score = diff_factor + base_mom - quote_mom
+                
+                return 1.0 + (score if direction == "LONG" else -score)
             
-        current_base = base_df['Close'].iloc[-1]
-        current_quote = quote_df['Close'].iloc[-1]
-        
-        # Hawkish Base + Dovish Quote = Bullish for Pair
-        if direction == "LONG":
-            if current_base > current_quote: return 1.2
-            elif current_base < current_quote: return 0.8
-        elif direction == "SHORT":
-            if current_base < current_quote: return 1.2
-            elif current_base > current_quote: return 0.8
-            
-    # --- TYPE 2: Inverse Commodity (e.g., Oil vs DXY) ---
+    # --- TYPE 2: Inverse Commodity (e.g., Oil vs DXY Momentum) ---
     elif m_type == 'commodity_inverse':
         dxy_df = macro_data.get('DX-Y.NYB')
-        if dxy_df is not None and not dxy_df.empty:
-            # 5-bar momentum
-            if len(dxy_df) >= 5:
-                dxy_mom = dxy_df['Close'].iloc[-1] - dxy_df['Close'].iloc[-5]
-                # Strengthening DXY (mom > 0) is Bearish for Oil
-                if direction == "LONG":
-                    return 0.8 if dxy_mom > 0 else 1.2
-                elif direction == "SHORT":
-                    return 1.2 if dxy_mom > 0 else 0.8
+        if dxy_df is not None and not dxy_df.empty and len(dxy_df) >= 5:
+            dxy_mom = dxy_df['Close'].iloc[-1] - dxy_df['Close'].iloc[-5]
+            # Strengthening DXY (mom > 0) is Bearish for Oil
+            # If DXY up, Score is -0.15 for Long, +0.15 for Short
+            score = -0.15 if dxy_mom > 0 else 0.15
+            return 1.0 + (score if direction == "LONG" else -score)
 
     return 1.0

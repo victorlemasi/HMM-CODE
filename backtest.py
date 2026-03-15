@@ -28,9 +28,9 @@ warnings.filterwarnings("ignore")
 
 # Reuse existing project modules (read-only, no changes needed)
 from data_fetcher import fetch_data, get_macro_data
-from hmm_analysis import detect_breakout, get_dynamic_exit_levels, calculate_atr, get_trigger_price
-from macro_bouncer import check_fundamental_gatekeeper
-from config import CURRENCY_PAIRS, MAJORS_FIX_LIST
+from hmm_analysis import detect_breakout, get_dynamic_exit_levels, calculate_atr, get_trigger_price, calculate_z_score
+from macro_bouncer import check_fundamental_gatekeeper, get_macro_weight
+from config import CURRENCY_PAIRS, MAJORS_FIX_LIST, WATCHDOG_TICKERS, WATCHDOG_JUMP_THRESHOLDS
 
 # ─── Configuration ─────────────────────────────────────────────────────────────
 BACKTEST_PERIOD = "6mo"          # Historical data to fetch
@@ -77,8 +77,8 @@ def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None
             macro_weight = get_macro_weight(ticker, direction_hmm, macro_data)
             adjusted_prob = prob * macro_weight
             
-            # --- CONFIDENCE THRESHOLD ---
-            if adjusted_prob < 0.6:
+            # --- CONFIDENCE THRESHOLD (Sophistication Upgrade: 0.7) ---
+            if adjusted_prob < 0.7:
                 # print(f"  [VETO] {ticker} Low Confidence ({adjusted_prob:.2f})")
                 desired = 0
             else:
@@ -93,10 +93,20 @@ def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None
                     desired = 0 
                 else:
                     desired = 1 if direction_hmm == 'LONG' else -1
+        
+        # --- SIMULATED WATCHDOG (Audit Sync) ---
+        # If hourly Z-score > threshold, skip entry (Circuit Breaker)
+        if ticker in WATCHDOG_TICKERS and desired != 0:
+            z_score = calculate_z_score(df['Close'].iloc[max(0, t-100):t+1])
+            threshold = WATCHDOG_JUMP_THRESHOLDS.get(ticker, WATCHDOG_JUMP_THRESHOLDS['DEFAULT'])
+            if abs(z_score) > threshold:
+                desired = 0
 
         # Calculate levels for the NEW desired position
         current_price = df['Close'].iloc[t]
-        tp_level, sl_level = get_dynamic_exit_levels(regime, current_price, current_atr, direction, ticker=ticker)
+        macro_bias = check_fundamental_gatekeeper(ticker, df.index[t], macro_data) if desired != 0 else None
+        is_scalp_active = (ticker == "CL=F" and macro_bias == "SCALP_ONLY")
+        tp_level, sl_level = get_dynamic_exit_levels(regime, current_price, current_atr, direction, ticker=ticker, is_scalp=is_scalp_active)
         
         # 1.2 Candle Filter: Calculate Trigger Price for Majors
         trigger_price = None
@@ -150,21 +160,25 @@ def run_backtest_for_pair(ticker: str, df: pd.DataFrame, macro_data: dict = None
 
             # If flat, check if we should enter Based on the HMM signal from start of step
             if position == 0 and desired != 0:
-                # 1.2 Candle Logic (Majors): Strict 1-bar trigger window
+                # 1.2 Candle Logic: Differentiated Signal Expiry
                 can_enter = True
                 if trigger_price:
-                    # check if hit in the FIRST sub-step
-                    if sub_t == t:
+                    # --- SIGNAL EXPIRY (Differentiated: 3 bars FX / 2 bars Commodities) ---
+                    expiry_offset = 2 if ticker.endswith("=X") else 1 
+                    if sub_t <= t + expiry_offset:
                         if desired == 1: # LONG
                             can_enter = (high >= trigger_price)
                         else: # SHORT
                             can_enter = (low <= trigger_price)
                         
-                        if not can_enter:
-                            # Trigger NOT hit in the immediate next hour -> Cancel for this 24h step
+                        if can_enter:
+                            # Trigger hit!
+                            pass
+                        elif sub_t == t + expiry_offset:
+                            # Trigger NOT hit within limit bars -> Cancel
                             desired = 0
                     else:
-                        # Should have been handled in sub_t == t; skip if reached here
+                        can_enter = False # Already past window
                         can_enter = False
                 
                 if can_enter:
