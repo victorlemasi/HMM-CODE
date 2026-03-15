@@ -162,17 +162,17 @@ def main():
             
             if gatekeeper_status == "BEARISH_ONLY" and direction == "LONG":
                 print(f"  [VETO] {pair} LONG signal rejected: Macro Bias.")
-                direction = "None"
+                direction = "⚠️LONG"
             elif gatekeeper_status == "BULLISH_ONLY" and direction == "SHORT":
                 print(f"  [VETO] {pair} SHORT signal rejected: Macro Bias.")
-                direction = "None"
+                direction = "⚠️SHORT"
             elif gatekeeper_status == "SCALP_ONLY" and pair == "CL=F":
                 print(f"  {pair} | WAR-TIME SCALP MODE: Tightening TP/SL.")
             
             # --- CONFIDENCE THRESHOLD ---
-            if adjusted_prob < 0.6 and direction != "None":
+            if adjusted_prob < 0.6 and direction not in ["None", "⚠️LONG", "⚠️SHORT"]:
                  print(f"  [VETO] {pair} Signal Rejected: Low Macro-Adjusted Confidence ({adjusted_prob:.2f})")
-                 direction = "None"
+                 direction = f"⚠️{direction}"
 
             # Calculate 1.2 Candle Trigger for Majors
             trigger = None

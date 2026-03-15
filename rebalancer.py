@@ -7,7 +7,7 @@ def diversify_signals(summary: pd.DataFrame) -> pd.DataFrame:
     Selection is based on 'State' (BREAKOUT) and then we pick the first one 
     in alphabetically sorted list or could be refined by volatility.
     """
-    breakouts = summary[summary['State'] == 'Breakout'].copy()
+    breakouts = summary[summary['State'] == 'Trend Breakout'].copy()
     
     # Group by cluster and pick the first one
     # This ensures diversification: only one position per correlated group.
@@ -20,8 +20,8 @@ def get_exit_recommendations(summary: pd.DataFrame) -> List[str]:
     Identifies assets that should be exited because they have left a 
     high-convictions regime (e.g., no longer in Breakout or Trend).
     """
-    # Assets NOT in Breakout or Trend should be considered for exit if they were previously held
-    exit_list = summary[~summary['State'].isin(['Breakout', 'Trend'])].index.tolist()
+    # Assets NOT in Trend Breakout or Mean Reversion should be considered for exit
+    exit_list = summary[~summary['State'].isin(['Trend Breakout', 'Mean Reversion'])].index.tolist()
     return exit_list
 
 def find_correlation_hedges(summary: pd.DataFrame) -> List[Dict]:
@@ -29,7 +29,7 @@ def find_correlation_hedges(summary: pd.DataFrame) -> List[Dict]:
     Identifies 'Market Neutral' opportunities where different clusters 
     are breaking out in opposite directions.
     """
-    breakouts = summary[summary['State'] == 'Breakout'].copy()
+    breakouts = summary[summary['State'] == 'Trend Breakout'].copy()
     if breakouts.empty:
         return []
 
