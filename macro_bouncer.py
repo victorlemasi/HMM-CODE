@@ -102,48 +102,68 @@ def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
                     if other_mom < 0: # Lack of basket sync
                          return "BEARISH_ONLY" # Veto technical longs if others are weak
 
-        # --- GOLD OVERRIDE: Real Yield (TIPS) & Nominal Yields ---
+        # --- NEW GBP SOPHISTICATION: Gilt-Treasury Divergence ---
+        if ticker == "GBPUSD=X":
+            from config import FRED_TICKERS
+            uk_10y = macro_data.get(FRED_TICKERS['UK10Y'])
+            us_10y = macro_data.get('^TNX')
+            if uk_10y is not None and us_10y is not None:
+                uk_slice = uk_10y[uk_10y.index <= current_time]
+                us_slice = us_10y[us_10y.index <= current_time]
+                if len(uk_slice) >= 10 and len(us_slice) >= 10:
+                    spread_curr = uk_slice['Close'].iloc[-1] - us_slice['Close'].iloc[-1]
+                    spread_prev = uk_slice['Close'].iloc[-5] - us_slice['Close'].iloc[-5]
+                    # If Gilt spread is narrowing, BoE is relatively more dovish than Fed -> Veto Longs
+                    if spread_curr < spread_prev:
+                        return "BEARISH_ONLY"
+                    elif spread_curr > spread_prev:
+                        return "BULLISH_ONLY"
+
+        # --- NEW GOLD CONVERGENCE: Real Yield (TIPS) & DXY Gate ---
         if ticker == "GC=F":
             from config import TIPS_TICKER
             tips_df = macro_data.get(TIPS_TICKER)
+            dxy_df = macro_data.get('DX-Y.NYB')
+            
             if tips_df is not None and not tips_df.empty:
                 tips_slice = tips_df[tips_df.index <= current_time]
-                if len(tips_slice) >= 2:
-                    curr_tips = tips_slice['Close'].iloc[-1]
-                    prev_tips = tips_slice['Close'].iloc[-2]
-                    # If Real Yields are rising, it's aggressively Bearish for Gold
-                    if curr_tips > prev_tips:
+                if len(tips_slice) >= 5:
+                    tips_mom = tips_slice['Close'].iloc[-1] - tips_slice['Close'].iloc[-5]
+                    # Rising Real Yields = Gold Death. Veto LONGs.
+                    if tips_mom > 0.02:
                         return "BEARISH_ONLY"
             
-            # Fallback to Nominal Yield and DXY
-            if yield_df is not None and not yield_df.empty:
-                yield_slice = yield_df[yield_df.index <= current_time]
-                if len(yield_slice) >= 2:
-                    current_yield = yield_slice['Close'].iloc[-1]
-                    prev_yield = yield_slice['Close'].iloc[-2]
-                    yield_change = current_yield - prev_yield
-                    if current_dxy > 100.20 or yield_change > 0:
+            if dxy_df is not None and not dxy_df.empty:
+                dxy_slice = dxy_df[dxy_df.index <= current_time]
+                if len(dxy_slice) >= 5:
+                    dxy_mom = dxy_slice['Close'].iloc[-1] - dxy_slice['Close'].iloc[-5]
+                    # If DXY and Tips are both rising, Short Gold is only conviction
+                    if dxy_mom > 0.2:
                         return "BEARISH_ONLY"
 
-        # --- OIL OVERRIDE ---
+        # --- NEW OIL CONVERGENCE: Global Growth & USD Gate ---
         if ticker == "CL=F":
-            if current_dxy > 100.50:
-                return "SCALP_ONLY"
+            from config import FRED_TICKERS
+            dxy_df = macro_data.get('DX-Y.NYB')
+            us_10y = macro_data.get('^TNX')
+            us_2y = macro_data.get(FRED_2Y_TICKERS.get('US2Y'))
+            
+            if dxy_df is not None and not dxy_df.empty:
+                dxy_slice = dxy_df[dxy_df.index <= current_time]
+                if len(dxy_slice) >= 20:
+                    # Multi-day DXY trend. If DXY is in a mega-rally (>1%), block Oil longs.
+                    dxy_roc = (dxy_slice['Close'].iloc[-1] - dxy_slice['Close'].iloc[-20]) / dxy_slice['Close'].iloc[-20]
+                    if dxy_roc > 0.01:
+                        return "BEARISH_ONLY"
 
-        # --- OIL-JPY CORRELATION FILTER ---
-        if ticker.endswith("JPY=X"):
-            oil_df_corr = macro_data.get('CL=F')
-            if oil_df_corr is not None and not oil_df_corr.empty:
-                oil_slice_corr = oil_df_corr[oil_df_corr.index <= current_time]
-                if len(oil_slice_corr) >= 18:
-                    oil_atr_series = calculate_atr(oil_slice_corr)
-                    if len(oil_atr_series) >= 5:
-                        current_oil_atr = oil_atr_series.iloc[-1]
-                        prev_oil_atr = oil_atr_series.iloc[-5] 
-                        if prev_oil_atr > 0:
-                            atr_spike = (current_oil_atr - prev_oil_atr) / prev_oil_atr
-                            if atr_spike > 0.02:
-                                return "BULLISH_ONLY" # Blocks SHORT (Long JPY)
+            # Growth Proxy: Yield Curve Slope (10Y-2Y). If inverted deeply, block longs (recession fears).
+            if us_10y is not None and us_2y is not None:
+                us_10_slice = us_10y[us_10y.index <= current_time]
+                us_2_slice = us_2y[us_2y.index <= current_time]
+                if len(us_10_slice) > 0 and len(us_2_slice) > 0:
+                    slope = us_10_slice['Close'].iloc[-1] - us_2_slice['Close'].iloc[-1]
+                    if slope < -0.30: # Hard inversion
+                        return "BEARISH_ONLY"
 
         # --- GENERAL MACRO DXY/OIL WALL ---
         if oil_df is not None and not oil_df.empty:

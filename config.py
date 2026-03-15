@@ -43,7 +43,9 @@ FRED_TICKERS = {
     'NZ10Y': 'IRLTLT01NZM156N',
     'NZ_OCR': 'IRSTCI01NZM156N',
     'UK10Y': 'IRLTLT01GBM156N',  # UK Government Bond Yield (Long-term)
-    'GER10Y': 'IRLTLT01DEM156N'  # Germany Government Bond Yield (Long-term)
+    'GER10Y': 'IRLTLT01DEM156N', # Germany Government Bond Yield (Long-term)
+    'UK_GILT_2Y': 'IUKG2',       # 2Y Gilt proxy
+    'US_TIPS_10Y': 'DFII10'      # 10Y Real Yield
 }
 
 # Macro Filter Settings
@@ -102,6 +104,7 @@ CONFIRMATION_BUFFER = 0.2
 MAJORS_TP_MULTIPLIER = 3.0
 BB_SQUEEZE_THRESHOLD = 0.05 # EURUSD only breakouts if squeeze < 5% of price
 TIPS_TICKER = 'DFII10' # FRED Real Yield
+COMMODITY_MACRO_ENABLE = True
 
 # EFFICIENCY EQUILIBRIUM OVERRIDES
 MAJORS_MIN_CONFIDENCE = 0.85
