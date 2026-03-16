@@ -8,7 +8,7 @@ def diversify_signals(summary: pd.DataFrame) -> pd.DataFrame:
     Selection is based on 'State' (BREAKOUT) and then we pick the first one 
     in alphabetically sorted list or could be refined by volatility.
     """
-    breakouts = summary[summary['State'] == 'Trend Breakout'].copy()
+    breakouts: pd.DataFrame = summary[summary['State'] == 'Trend Breakout'].copy()
     
     # Group by cluster and pick the first one
     # This ensures diversification: only one position per correlated group.
@@ -30,20 +30,20 @@ def find_correlation_hedges(summary: pd.DataFrame) -> List[Dict]:
     Identifies 'Market Neutral' opportunities where different clusters 
     are breaking out in opposite directions.
     """
-    breakouts = summary[summary['State'] == 'Trend Breakout'].copy()
+    breakouts: pd.DataFrame = summary[summary['State'] == 'Trend Breakout'].copy()
     if breakouts.empty:
         return []
 
     hedges = []
-    clusters = breakouts['Cluster'].unique().tolist()
+    clusters: List[Any] = list(breakouts['Cluster'].unique())
     
-    for i in range(len(clusters)):
-        for j in range(i + 1, len(clusters)):
-            c1 = clusters[i]
-            c2 = clusters[j]
+    for c1 in clusters:
+        for c2 in clusters:
+            if c1 == c2:
+                continue
             
-            assets1 = breakouts[breakouts['Cluster'] == c1]
-            assets2 = breakouts[breakouts['Cluster'] == c2]
+            assets1 = breakouts.loc[breakouts['Cluster'] == c1]
+            assets2 = breakouts.loc[breakouts['Cluster'] == c2]
             
             for a1_idx, a1_row in assets1.iterrows():
                 for a2_idx, a2_row in assets2.iterrows():

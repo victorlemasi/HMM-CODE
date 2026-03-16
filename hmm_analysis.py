@@ -8,8 +8,9 @@ from config import (
     HMM_COMPONENTS, ASSET_MAPPINGS, COMMODITY_TICKERS, YIELD_TICKERS, FRED_TICKERS,
     ATR_MULTIPLIER_FX, ATR_MULTIPLIER_GOLD, MAJORS_FIX_LIST,
     CONFIRMATION_BUFFER, MAJORS_TP_MULTIPLIER, ASSET_N_COMPONENTS, BB_SQUEEZE_THRESHOLD,
-    HMM_N_ITER, HMM_COVARS_PRIOR, HMM_MIN_COVAR
+    HMM_N_ITER, HMM_COVARS_PRIOR, HMM_MIN_COVAR, FRED_2Y_TICKERS
 )
+from sklearn.metrics import pairwise_distances
 
 def calculate_rsi(series, period=14):
     delta = series.diff()
@@ -181,7 +182,6 @@ def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: 
                 features_cols.append('Spec_Feat')
                 
                 # --- EFFICIENCY EQUILIBRIUM: 2s10s spread ROC ---
-                from config import FRED_2Y_TICKERS
                 is_eur = ticker.startswith("EUR") if ticker else False
                 two_y_key = 'GER2Y' if is_eur else 'UK2Y'
                 two_y_ticker = FRED_2Y_TICKERS.get(two_y_key)
@@ -251,7 +251,6 @@ def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: 
     km.fit(features_scaled)
     # Assign each HMM state to the nearest KMeans cluster center
     # by matching HMM means_ to KMeans centers
-    from sklearn.metrics import pairwise_distances
     dist_matrix = pairwise_distances(model.means_, km.cluster_centers_)
     hmm_to_km = np.argmin(dist_matrix, axis=1)   # which KMeans cluster each HMM state maps to
 
