@@ -1,7 +1,19 @@
 {
-    "GC=F": {
+    "EURUSD=X": {
         "dir": "LONG",
-        "entry_time": "2026-03-15T18:41:45.059147",
+        "entry_time": "2026-03-16T13:43:28.796639",
+        "regime": "Mean Reversion",
+        "bars_active": 1
+    },
+    "USDCHF=X": {
+        "dir": "SHORT",
+        "entry_time": "2026-03-16T13:43:29.452960",
+        "regime": "Mean Reversion",
+        "bars_active": 1
+    },
+    "EURJPY=X": {
+        "dir": "SHORT",
+        "entry_time": "2026-03-16T13:43:30.577881",
         "regime": "Mean Reversion",
         "bars_active": 1
     }
