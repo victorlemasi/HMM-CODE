@@ -6,7 +6,8 @@ from sklearn.cluster import KMeans
 from config import (
     HMM_COMPONENTS, ASSET_MAPPINGS, COMMODITY_TICKERS, YIELD_TICKERS, FRED_TICKERS,
     ATR_MULTIPLIER_FX, ATR_MULTIPLIER_GOLD, MAJORS_FIX_LIST,
-    CONFIRMATION_BUFFER, MAJORS_TP_MULTIPLIER, ASSET_N_COMPONENTS, BB_SQUEEZE_THRESHOLD
+    CONFIRMATION_BUFFER, MAJORS_TP_MULTIPLIER, ASSET_N_COMPONENTS, BB_SQUEEZE_THRESHOLD,
+    HMM_N_ITER, HMM_COVARS_PRIOR, HMM_MIN_COVAR
 )
 
 def calculate_rsi(series, period=14):
@@ -224,10 +225,15 @@ def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = Non
         try:
             model = GaussianHMM(
                 n_components=best_n, covariance_type="diag",
-                n_iter=1000, tol=1e-2, random_state=42
+                n_iter=HMM_N_ITER, tol=1e-2, random_state=42,
+                covars_prior=HMM_COVARS_PRIOR,
+                min_covar=HMM_MIN_COVAR
             )
             model.fit(features_scaled)
         except Exception as e:
+            # Handle non-convergence or math errors
+            if "Model is not converging" in str(e):
+                 print(f"Model is not converging for {ticker}")
             raise ValueError(f"Could not fit HMM model: {e}")
     else:
         # If model provided (e.g. from a cache), we just use it

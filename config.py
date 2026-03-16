@@ -18,6 +18,9 @@ N_CLUSTERS = 4
 
 # HMM settings
 HMM_COMPONENTS = 3  # Consolidation, Mean Reversion, Trend Breakout
+HMM_N_ITER = 5000   # Increased from 1000 for convergence
+HMM_COVARS_PRIOR = 1e-2 # Bayesian prior for stability
+HMM_MIN_COVAR = 1e-2    # Prevent numerical instability/collapse
 ATR_MULTIPLIER_FX = 0.15 
 ATR_MULTIPLIER_GOLD = 0.2
 
