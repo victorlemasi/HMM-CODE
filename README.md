@@ -4,31 +4,34 @@ A high-sophistication quantitative scanner designed for the volatility of the 20
 
 ## 🚀 Key Features
 
-- **War-Time Asset Strategy**: Treats Gold (`GC=F`) and Oil (`CL=F`) as "War Sensors" with unique safety filters and extended holding periods.
-- **4-State HMM (Gold)**: Advanced state separation for Gold to isolate standard trends from explosive "Safe Haven Spikes."
-- **Mahalanobis Jump Watchdog**: Multi-dimensional safety layer monitoring Price, Volatility, and Macro spreads to detect structural market shocks.
-- **Volatility Squeeze Filter (EURUSD)**: Bollinger Band Width contraction requirements to filter "efficiency traps" in major pairs.
-- **Real Yield (TIPS) Overlay**: Fundamental filtering for Gold longs based on 10-Year Real Interest Rates (FRED: `DFII10`).
-- **Robust Stochastic Logic**: All statistical calculations (Z-Scores, Regimes) use Median Absolute Deviation (MAD) for resilience against fat-tailed financial distributions.
-- **Regime-Shift Protection**: Automatic "Flatten" logic in the backtester/exec engine when HMM detects a transition out of tradeable states.
+- **War-Time Asset Strategy**: Treats Gold (`GC=F`) and Oil (`CL=F`) as "War Sensors" with strict time-limits (4h/8h) and Mahalanobis jump-detection.
+- **Fundamental Gatekeeper (Bouncer)**: Hybrid filtering using Yield Curve spreads (2s10s), USD Basket Sync, and Real Yield thresholds.
+- **Cache-Less Data Integrity**: Completely disabled local caching to ensure 100% fresh data synchronization with `yfinance` and `FRED`.
+- **London Lunch Squeeze**: Automated 90% confidence requirement during low-liquidity midday hours for major FX pairs.
+- **Regime-Shift Protection**: Automatic "Flatten" logic triggered by structural HMM state transitions (Stable/Consolidation).
 
 ## 🧠 Sophisticated Logic Framework
 
 ### 1. The Fundamental Bouncer (Macro Gatekeeper)
-Every technical signal must pass a series of global fundamental checks:
-- **DXY Wall**: Prevents Longs in major currencies and Commodities if the US Dollar Index is in an aggressive trend.
-- **Yield Spread Momentum**: Forces alignment with base symbol interest rate momentum (10Y Yield shifts).
-- **RBNZ/CB Bias**: Automated hawkish/dovish scoring for commodity currencies (AUD, NZD) using policy rate data.
+Every technical signal must pass a multi-layered global fundamental validation suite:
+- **Basket Sync Filter (FX)**: Prevents "Liquidity Sweeps" by ensuring EUR and GBP are moving in the same direction before approving long signals.
+- **Yield Curve Divergence (2s10s)**: Compares US 10Y-2Y spreads against domestic (UK/GER) spreads. Vetoes entries if the domestic curve flattens significantly (>10bps) relative to the US.
+- **Commodity Convergence Gates**:
+    - **Gold (`GC=F`)**: Automated veto on Longs if **TIPS (Real Yields)** or the **DXY** show aggressive upside momentum.
+    - **Oil (`CL=F`)**: Blocks Longs during deep US Yield Curve inversion (< -0.30) to protect against recessionary demand shocks.
+- **RBNZ/CB Bias**: Real-time yield tracking for NZD/AUD pairs; automated Bullish/Bearish overrides based on policy rate differentials.
 
-### 2. Bayesian Confidence Weighting
-Technical HMM probabilities are adjusted by **Macro Momentum**:
-- **Confidence Threshold**: 0.70 (Post-Adjustment).
-- **Policy Differentials**: Signals are weighted by the interest rate carry advantage of the base currency.
+### 2. Bayesian Confidence Weighting & Temporal Filters
+Technical HMM probabilities are adjusted by **Macro Momentum** and **Liquidity Windows**:
+- **Confidence Thresholds**: Base threshold of 0.70, elevated to **0.90** during the **London Lunch Hour** to filter out low-volume noise.
+- **Temporal Kill Zones**: Peak liquidity hours are prioritized; new entries are restricted during dead hours to avoid technical breakout traps.
+- **Signal Expiry**: Signals expire after 3 bars for FX and 2 bars for Commodities if price handles are not triggered.
 
-### 3. Integrated Watchdog (Circuit Breakers)
-- **1-Minute Pulse**: Real-time monitoring of jumps (> 3.5 MAD sigma).
-- **15-Minute Cooldown**: Automatic trading pause on detection of idiosyncratic shocks.
-
+### 3. Integrated Watchdog & Risk Overrides
+- **War-Time Time Exits**: Strict holding periods to minimize tail-risk exposure (4h for Oil, 8h for Gold).
+- **Parabolic Trailing Stops**: SAR-style trailing logic specifically for `EURUSD=X` to lock in profits during trend extensions.
+- **Mahalanobis Jump Detection**: Multi-variate outlier detection for Gold using covariance-adjusted distance rather than simple Z-scores.
+- **Scalp Mode (Oil)**: Automatic transition to a high-frequency risk profile when `CL=F` macro conditions are volatile but non-trending.
 ## 🛠️ Installation & Setup
 
 1. **Environment**: Recommended Python 3.12 (for `hmmlearn` stability).
