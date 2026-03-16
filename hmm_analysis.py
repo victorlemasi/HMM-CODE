@@ -3,6 +3,7 @@ import pandas as pd
 from hmmlearn.hmm import GaussianHMM
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
+from typing import Optional, Dict, Any, Union
 from config import (
     HMM_COMPONENTS, ASSET_MAPPINGS, COMMODITY_TICKERS, YIELD_TICKERS, FRED_TICKERS,
     ATR_MULTIPLIER_FX, ATR_MULTIPLIER_GOLD, MAJORS_FIX_LIST,
@@ -96,7 +97,7 @@ def calculate_bb_width(df, period=20):
     width = (upper - lower) / (sma + 1e-9)
     return width
 
-def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = None, model=None):
+def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: Optional[Dict[str, Any]] = None, model=None):
     """
     Fits an HMM to detect price regimes using BIC for optimal state selection.
     Features: Returns, Volatility, Range, Momentum, RSI, Vol/Vol Ratio.
@@ -181,7 +182,7 @@ def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = Non
                 
                 # --- EFFICIENCY EQUILIBRIUM: 2s10s spread ROC ---
                 from config import FRED_2Y_TICKERS
-                is_eur = ticker.startswith("EUR")
+                is_eur = ticker.startswith("EUR") if ticker else False
                 two_y_key = 'GER2Y' if is_eur else 'UK2Y'
                 two_y_ticker = FRED_2Y_TICKERS.get(two_y_key)
                 
@@ -259,7 +260,7 @@ def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = Non
     km_labels = km.predict(features_scaled)
     for k in range(best_n):
         mask = (km_labels == k)
-        if mask.sum() > 0:
+        if np.sum(mask) > 0:
             km_variances[k] = features_scaled[mask].var(axis=0).sum()
 
     # Sort KMeans clusters: low variance = Consolidation, high = Trend Breakout
@@ -284,7 +285,7 @@ def detect_breakout(df: pd.DataFrame, ticker: str = None, macro_data: dict = Non
     for i in range(best_n):
         mask = (states_arr == i)
         state_metrics[i] = {
-            'ret': float(df['Returns'].values[mask].mean()) if mask.sum() > 0 else 0.0
+            'ret': float(df['Returns'].values[mask].mean()) if np.sum(mask) > 0 else 0.0
         }
 
     regime = labels[current_state_id]

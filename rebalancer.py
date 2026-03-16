@@ -1,5 +1,6 @@
 import pandas as pd
-from typing import Dict, List, Tuple
+import numpy as np
+from typing import Dict, List, Tuple, Any
 
 def diversify_signals(summary: pd.DataFrame) -> pd.DataFrame:
     """
@@ -34,7 +35,7 @@ def find_correlation_hedges(summary: pd.DataFrame) -> List[Dict]:
         return []
 
     hedges = []
-    clusters = breakouts['Cluster'].unique()
+    clusters = breakouts['Cluster'].unique().tolist()
     
     for i in range(len(clusters)):
         for j in range(i + 1, len(clusters)):
