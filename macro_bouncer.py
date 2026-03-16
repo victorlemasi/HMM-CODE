@@ -165,6 +165,35 @@ def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
                     if slope < -0.30: # Hard inversion
                         return "BEARISH_ONLY"
 
+        # --- NEW EUR "ENERGY IMPORTER" VETO (EURUSD, EURAUD) ---
+        if ticker in ["EURUSD=X", "EURAUD=X"]:
+            dxy_df = macro_data.get('DX-Y.NYB')
+            oil_df = macro_data.get('BZ=F')
+            if dxy_df is not None and oil_df is not None:
+                current_dxy = dxy_df['Close'].iloc[-1]
+                current_oil = oil_df['Close'].iloc[-1]
+                
+                if current_oil > 90 and current_dxy > 100:
+                    from config import FRED_TICKERS
+                    ger_10y = macro_data.get(FRED_TICKERS['GER10Y'])
+                    quote_ticker = '^TNX' if ticker == "EURUSD=X" else FRED_TICKERS.get('AUD10Y')
+                    quote_y = macro_data.get(quote_ticker)
+                    
+                    if ger_10y is not None and quote_y is not None:
+                        ger_slice = ger_10y[ger_10y.index <= current_time]
+                        quote_slice = quote_y[quote_y.index <= current_time]
+                        
+                        if len(ger_slice) > 0 and len(quote_slice) > 0:
+                            spread_curr = ger_slice['Close'].iloc[-1] - quote_slice['Close'].iloc[-1]
+                            
+                            # Baseline check for previous spread (e.g. 5 days/bars ago)
+                            lookback = 120 # 5 days at 1h interval
+                            if len(ger_slice) >= lookback and len(quote_slice) >= lookback:
+                                spread_prev = ger_slice['Close'].iloc[-lookback] - quote_slice['Close'].iloc[-lookback]
+                                # If OIL > 90 and Spread is narrowing or EUR yield is significantly lower
+                                if spread_curr < spread_prev or spread_curr < -1.0:
+                                    return "BEARISH_ONLY"
+
         # --- GENERAL MACRO DXY/OIL WALL ---
         if oil_df is not None and not oil_df.empty:
             oil_slice = oil_df[oil_df.index <= current_time]

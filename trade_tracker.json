@@ -1,20 +1,20 @@
 {
-    "EURUSD=X": {
+    "CHFJPY=X": {
+        "dir": "SHORT",
+        "entry_time": "2026-03-16T16:40:57.812261",
+        "regime": "Mean Reversion",
+        "bars_active": 0
+    },
+    "GC=F": {
         "dir": "LONG",
-        "entry_time": "2026-03-16T13:43:28.796639",
+        "entry_time": "2026-03-16T16:40:58.705827",
         "regime": "Mean Reversion",
-        "bars_active": 2
+        "bars_active": 0
     },
-    "USDCHF=X": {
-        "dir": "SHORT",
-        "entry_time": "2026-03-16T13:43:29.452960",
+    "CL=F": {
+        "dir": "LONG",
+        "entry_time": "2026-03-16T16:40:58.827018",
         "regime": "Mean Reversion",
-        "bars_active": 2
-    },
-    "EURJPY=X": {
-        "dir": "SHORT",
-        "entry_time": "2026-03-16T13:43:30.577881",
-        "regime": "Mean Reversion",
-        "bars_active": 2
+        "bars_active": 0
     }
 }

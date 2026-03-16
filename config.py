@@ -48,7 +48,8 @@ FRED_TICKERS = {
     'UK10Y': 'IRLTLT01GBM156N',  # UK Government Bond Yield (Long-term)
     'GER10Y': 'IRLTLT01DEM156N', # Germany Government Bond Yield (Long-term)
     'UK_GILT_2Y': 'IUKG2',       # 2Y Gilt proxy
-    'US_TIPS_10Y': 'DFII10'      # 10Y Real Yield
+    'US_TIPS_10Y': 'DFII10',      # 10Y Real Yield
+    'AUD10Y': 'IRLTLT01AUM156N'  # Australia 10Y Bond Yield
 }
 
 # Macro Filter Settings
