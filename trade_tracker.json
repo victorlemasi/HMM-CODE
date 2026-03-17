@@ -1,31 +1,37 @@
 {
+    "EURJPY=X": {
+        "dir": "SHORT",
+        "entry_time": "2026-03-17T20:51:48.326785",
+        "regime": "Mean Reversion",
+        "bars_active": 1
+    },
     "GBPJPY=X": {
         "dir": "SHORT",
-        "entry_time": "2026-03-17T17:13:58.659796",
+        "entry_time": "2026-03-17T20:51:48.646240",
         "regime": "Mean Reversion",
         "bars_active": 1
     },
     "EURAUD=X": {
         "dir": "SHORT",
-        "entry_time": "2026-03-17T17:13:59.713732",
+        "entry_time": "2026-03-17T21:05:03.287463",
         "regime": "Mean Reversion",
-        "bars_active": 1
+        "bars_active": 0
+    },
+    "EURNZD=X": {
+        "dir": "LONG",
+        "entry_time": "2026-03-17T20:37:44.130911",
+        "regime": "Mean Reversion",
+        "bars_active": 2
     },
     "GBPNZD=X": {
         "dir": "LONG",
-        "entry_time": "2026-03-17T17:14:00.300361",
+        "entry_time": "2026-03-17T21:05:04.041956",
         "regime": "Mean Reversion",
-        "bars_active": 1
-    },
-    "AUDNZD=X": {
-        "dir": "LONG",
-        "entry_time": "2026-03-17T17:16:49.277024",
-        "regime": "Trend Breakout",
         "bars_active": 0
     },
     "GC=F": {
         "dir": "LONG",
-        "entry_time": "2026-03-17T17:14:00.711073",
+        "entry_time": "2026-03-17T20:51:51.313714",
         "regime": "Consolidation",
         "bars_active": 1
     }
