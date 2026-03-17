@@ -186,7 +186,6 @@ def main():
                 pair_warnings.append("GPR Spike -> Safe Haven Priority")
                 
             is_breakout, direction, regime, _, current_atr, prob = detect_breakout(df, ticker=pair, macro_data=macro_data)
-            regime_results[pair] = regime
             
             # --- APPLY THE FUNDAMENTAL BOUNCER (Global Gatekeeper) ---
             current_time = df.index[-1]
@@ -251,8 +250,7 @@ def main():
                 # Majors always use 1.2 logic; others use it if in a macro-supported phase
                 trigger = get_trigger_price(df, regime, direction, current_atr, macro_phase=macro_phase)
             
-            # Update summary direction AFTER all filters
-            breakout_directions[pair] = direction
+            # breakout_directions[pair] assignment moved to end of loop
             
             # Re-format warnings to include Macro Gatekeeper prefix if not already present
             final_warnings = pair_warnings
@@ -271,6 +269,7 @@ def main():
                     if new_tracker[pair]['bars_active'] >= expiry_limit:
                         print(f"  [SIGNAL EXPIRED] {pair} failed to trigger within {expiry_limit} bars.")
                         direction = "None"
+                        regime = "Consolidation" # Reset regime on expiry for consistency
                         del new_tracker[pair]
                     
                     # --- EFFICIENCY EQUILIBRIUM: Progressive SAR-style Stops ---
@@ -304,6 +303,12 @@ def main():
             if trigger:
                 msg += f" | TRIGGER: {trigger:.5f}"
             print(msg)
+
+            # --- FINAL STATE UPDATE (Ensure CSV matches Terminal) ---
+            regime_results[pair] = regime
+            breakout_directions[pair] = direction
+            warnings_dict[pair] = " | ".join(pair_warnings) if pair_warnings else ""
+
         except Exception as e:
             print(f"Error analyzing {pair}: {e}")
             regime_results[pair] = "Error"

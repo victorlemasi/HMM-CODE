@@ -75,11 +75,11 @@ def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
                     from config import YIELD_THRESHOLD
                     # Use synced config threshold
                     if momentum < -YIELD_THRESHOLD: 
-                        biases.append("BEARISH_BIAS (Yields)")
+                        biases.append("BEARISH_ONLY")
                     elif momentum > YIELD_THRESHOLD:
-                        biases.append("BULLISH_BIAS (Yields)")
+                        biases.append("BULLISH_ONLY")
                     else:
-                        biases.append("NEUTRAL (Yields)")
+                        biases.append("NEUTRAL")
 
         # --- POLICY RATE COMPARISON (live FRED data, gracefully skips if unavailable) ---
         from config import ASSET_MAPPINGS as _AM, POLICY_RATE_TICKERS
@@ -113,11 +113,11 @@ def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
             if base_rate is not None and quote_rate is not None:
                 diff = base_rate - quote_rate
                 if diff > 1.5:
-                    biases.append(f"BULLISH_BIAS (Rate diff: +{diff:.1f}%)")
+                    biases.append("BULLISH_ONLY")
                 elif diff < -1.5:
-                    biases.append(f"BEARISH_BIAS (Rate diff: {diff:.1f}%)")
+                    biases.append("BEARISH_ONLY")
                 else:
-                    biases.append(f"NEUTRAL (Rates: {base_rate}% vs {quote_rate}%)")
+                    biases.append("NEUTRAL")
 
         # Filter out NEUTRAL from the display biases to keep it clean (Macro Gatekeeper: BEARISH_ONLY style)
         active_biases = [b for b in biases if "NEUTRAL" not in b]
