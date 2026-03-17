@@ -316,8 +316,18 @@ def main():
     
     # 4. Final Summary
     print("\n=== Summary Report ===")
-    summary = pd.DataFrame(index=returns_df.columns)
-    summary['Cluster'] = cluster_mapping
+    
+    # DEBUG: Check for mismatch in labels
+    ticker_set = set(returns_df.columns)
+    loop_set = set(regime_results.keys())
+    if ticker_set != loop_set:
+        print(f"!!! INDEX MISMATCH: returns_df has {len(ticker_set)} cols, but loop processed {len(loop_set)} pairs.")
+        print(f"  Missing from returns_df: {loop_set - ticker_set}")
+        print(f"  Extra in returns_df: {ticker_set - loop_set}")
+        
+    # Force summary index to be all analyzed pairs for total alignment
+    summary = pd.DataFrame(index=list(regime_results.keys()))
+    summary['Cluster'] = pd.Series(cluster_mapping) # Align as Series
     summary['Regime'] = pd.Series(regime_results)
     summary['Direction'] = pd.Series(breakout_directions)
     summary['State'] = summary['Regime'] # For compatibility with rebalancer
@@ -355,8 +365,11 @@ def main():
     
     hedges = find_correlation_hedges(summary[summary['Regime'] == 'Trend Breakout'])
     
+    # Sort summary by Cluster and Regime for consistent visual presentation in both Terminal and CSV
+    summary = summary.sort_values(by=['Cluster', 'Regime'])
+
     print("\n--- Raw Analysis (All Pairs) ---", flush=True)
-    print(summary[['Cluster', 'Regime', 'Direction', 'State', 'Warnings']].sort_values(by=['Cluster', 'Regime']), flush=True)
+    print(summary[['Cluster', 'Regime', 'Direction', 'State', 'Warnings']], flush=True)
     
     print("\n--- Trend Breakout Assets (High Volatility — Big Moves) ---")
     breakouts = summary[summary['Regime'] == 'Trend Breakout']
