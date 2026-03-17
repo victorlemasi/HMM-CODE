@@ -254,16 +254,23 @@ def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: 
                 continue
         
         if model is None or not hasattr(model, 'monitor_'):
-            # FINAL SAFETY NET: If HMM fails completely, use simple technical regime logic
-            print(f"CRITICAL: HMM failed for {ticker}. Using simple statistical fallback.")
+            print(f"      [HMM WARNING] {ticker} HMM failed! Using simple statistical fallback.")
             avg_vol = float(df['Volatility'].mean())
             curr_vol = float(df['Volatility'].iloc[-1])
             avg_ret = float(df['Returns'].mean())
             
-            regime = "Trend Breakout" if curr_vol > avg_vol * 1.5 else ("Mean Reversion" if curr_vol > avg_vol else "Consolidation")
+            # More descriptive regime fallback
+            if curr_vol > avg_vol * 1.5:
+                regime = "Trend Breakout"
+            elif curr_vol > avg_vol:
+                regime = "Mean Reversion"
+            else:
+                regime = "Consolidation"
+                
             direction = "LONG" if avg_ret > 0 else "SHORT"
             current_atr = float(df['ATR'].iloc[-1])
             
+            print(f"      [FALLBACK] Regime: {regime} | Direction: {direction}")
             return (regime == "Trend Breakout"), direction, regime, 0, current_atr, 1.0
     else:
         best_n = model.n_components

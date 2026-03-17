@@ -97,10 +97,14 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None
                 
                 if "BEARISH_BIAS" in macro_bias and direction_hmm == "LONG":
                     desired = 0 
+                    print(f"      [VETO] {symbol} LONG rejected by Macro Bias: {macro_bias}")
                 elif "BULLISH_BIAS" in macro_bias and direction_hmm == "SHORT":
                     desired = 0 
+                    print(f"      [VETO] {symbol} SHORT rejected by Macro Bias: {macro_bias}")
                 else:
                     desired = 1 if direction_hmm == 'LONG' else -1
+                    if desired != 0:
+                        print(f"      [SIGNAL] {symbol} {direction_hmm} | Conf: {adjusted_prob:.2f} | Regime: {regime}")
         
         # --- SIMULATED WATCHDOG (Audit Sync) ---
         if symbol in WATCHDOG_TICKERS and desired != 0:
@@ -112,6 +116,7 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None
             threshold = WATCHDOG_JUMP_THRESHOLDS.get(symbol, WATCHDOG_JUMP_THRESHOLDS['DEFAULT'])
             if abs(score) > threshold:
                 desired = 0
+                print(f"      [WATCHDOG VETO] {symbol} Jump Detected! Score: {score:.2f} > {threshold}")
 
         # Calculate levels for the NEW desired position
         current_price = df['Close'].iloc[t]
@@ -141,6 +146,8 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None
         trigger_price = None
         if symbol in MAJORS_FIX_LIST and regime == "Trend Breakout" and direction != "None":
             trigger_price = get_trigger_price(df.iloc[:t], regime, direction, current_atr, macro_phase=macro_phase)
+            if trigger_price:
+                print(f"      [TRIGGER] {symbol} Set at {trigger_price:.5f}")
 
         # ── Intra-step Simulation ──────────────────────────────────────────
         for sub_t in range(t, min(t + STEP_SIZE, total_bars)):
