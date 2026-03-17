@@ -16,21 +16,27 @@ def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
         OIL_DANGER_ZONE = 98.00 
         MOM_THRESHOLD = 0.0025
         
+        # Ensure current_time is a UTC-aware Timestamp
+        current_time = pd.to_datetime(current_time)
+        if current_time.tzinfo is None:
+            current_time = current_time.tz_localize('UTC')
+        else:
+            current_time = current_time.tz_convert('UTC')
+
         dxy_df = macro_data.get('DX-Y.NYB')
-        oil_df = macro_data.get('BZ=F')
-        yield_df = macro_data.get('^TNX')
-
-        if dxy_df is None or dxy_df.empty:
-            return "ALLOW"
-
-        # Current values (last available before or at current_time)
-        dxy_slice = dxy_df[dxy_df.index <= current_time]
-        if len(dxy_slice) < 25: return "ALLOW"
         
-        current_dxy = dxy_slice['Close'].iloc[-1]
-        # Daily momentum (approx 24h/24 bars)
-        dxy_change = (current_dxy - dxy_slice['Close'].iloc[-25]) / dxy_slice['Close'].iloc[-25]
+        if dxy_df is not None and not dxy_df.empty:
+            # Ensure index is UTC-aware for comparison
+            if dxy_df.index.tzinfo is None:
+                dxy_df.index = dxy_df.index.tz_localize('UTC')
+            
+            dxy_slice = dxy_df[dxy_df.index <= current_time]
+            if len(dxy_slice) >= 25:
+                current_dxy = dxy_slice['Close'].iloc[-1]
+                dxy_change = (current_dxy - dxy_slice['Close'].iloc[-25]) / dxy_slice['Close'].iloc[-25]
 
+        biases = []
+        
         # --- NEW GENERIC MACRO: Yield Spread Momentum (Applicable to ALL Pairs) ---
         from config import ASSET_MAPPINGS, YIELD_TICKERS, FRED_TICKERS, POLICY_RATE_TICKERS
         if ticker in ASSET_MAPPINGS and ASSET_MAPPINGS[ticker]['type'] == 'macro':
@@ -42,44 +48,76 @@ def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
             quote_y_df = macro_data.get(quote_y_tkr)
             
             if base_y_df is not None and quote_y_df is not None:
+                # Ensure indices are UTC-aware
+                if base_y_df.index.tzinfo is None:
+                    base_y_df.index = base_y_df.index.tz_localize('UTC')
+                if quote_y_df.index.tzinfo is None:
+                    quote_y_df.index = quote_y_df.index.tz_localize('UTC')
+
                 b_slice = base_y_df[base_y_df.index <= current_time]
                 q_slice = quote_y_df[quote_y_df.index <= current_time]
                 
-                # Check 5-day / 120-bar momentum for yield spread
-                lookback = 120 if len(b_slice) >= 120 else len(b_slice) // 2
-                if lookback > 5:
+                if len(b_slice) >= 2 and len(q_slice) >= 2:
+                    # Frequency-aware lookback: 120 bars for hourly, 2 for monthly
+                    lb = 120 if len(b_slice) > 120 else 2
+                    
                     spread_curr = b_slice['Close'].iloc[-1] - q_slice['Close'].iloc[-1]
-                    spread_prev = b_slice['Close'].iloc[-lookback] - q_slice['Close'].iloc[-lookback]
+                    spread_prev = b_slice['Close'].iloc[-lb] - q_slice['Close'].iloc[-lb]
                     momentum = spread_curr - spread_prev
                     
-                    if momentum < -0.10: # Spread narrowing significantly
-                        return "BEARISH_ONLY" if not ticker.startswith("USD") else "BULLISH_ONLY"
-                    if momentum > 0.10: # Spread widening significantly
-                        return "BULLISH_ONLY" if not ticker.startswith("USD") else "BEARISH_ONLY"
+                    # 0.03% (3 bps) threshold for sensitivity
+                    if momentum < -0.03: 
+                        biases.append("BEARISH_BIAS (Yields)" if not ticker.startswith("USD") else "BULLISH_BIAS (Yields)")
+                    elif momentum > 0.03:
+                        biases.append("BULLISH_BIAS (Yields)" if not ticker.startswith("USD") else "BEARISH_BIAS (Yields)")
+                    else:
+                        biases.append("NEUTRAL (Yields)")
 
-        # --- NEW GENERIC MACRO: Policy Rate Delta (Hikes/Cuts) ---
-        if ticker in ASSET_MAPPINGS and ASSET_MAPPINGS[ticker]['type'] == 'macro':
-            mapping = ASSET_MAPPINGS[ticker]
-            for curr_key, side in [('base_currency', 'base'), ('quote_currency', 'quote')]:
-                currency = mapping.get(curr_key)
-                rate_tkr = POLICY_RATE_TICKERS.get(currency)
-                rate_df = macro_data.get(rate_tkr)
-                
-                if rate_df is not None and not rate_df.empty:
-                    r_slice = rate_df[rate_df.index <= current_time]
-                    if len(r_slice) >= 5:
-                        curr_rate = r_slice['Close'].iloc[-1]
-                        prev_rate = r_slice['Close'].iloc[-5] # Catch recent shift (daily data usually)
-                        
-                        if curr_rate > prev_rate: # HAWKISH MOVE (Hike detected)
-                            # If base hikes, buy pair. If quote hikes, sell pair.
-                            return "BULLISH_ONLY" if side == 'base' else "BEARISH_ONLY"
-                        elif curr_rate < prev_rate: # DOVISH MOVE (Cut detected)
-                            return "BEARISH_ONLY" if side == 'base' else "BULLISH_ONLY"
+        # --- POLICY RATE COMPARISON (live FRED data, gracefully skips if unavailable) ---
+        from config import ASSET_MAPPINGS as _AM, POLICY_RATE_TICKERS
+        if ticker in _AM and _AM[ticker]['type'] == 'macro':
+            mapping = _AM[ticker]
+            base_curr = mapping.get('base_currency')
+            quote_curr = mapping.get('quote_currency')
+            base_rate_tkr = POLICY_RATE_TICKERS.get(base_curr)
+            quote_rate_tkr = POLICY_RATE_TICKERS.get(quote_curr)
 
+            base_r_df = macro_data.get(base_rate_tkr) if base_rate_tkr else None
+            quote_r_df = macro_data.get(quote_rate_tkr) if quote_rate_tkr else None
 
-        return "ALLOW"
-    except Exception:
+            base_rate = None
+            quote_rate = None
+
+            if base_r_df is not None and not base_r_df.empty:
+                if base_r_df.index.tzinfo is None:
+                    base_r_df.index = base_r_df.index.tz_localize('UTC')
+                b_slice = base_r_df[base_r_df.index <= current_time]
+                if not b_slice.empty:
+                    base_rate = b_slice['Close'].iloc[-1]
+
+            if quote_r_df is not None and not quote_r_df.empty:
+                if quote_r_df.index.tzinfo is None:
+                    quote_r_df.index = quote_r_df.index.tz_localize('UTC')
+                q_slice = quote_r_df[quote_r_df.index <= current_time]
+                if not q_slice.empty:
+                    quote_rate = q_slice['Close'].iloc[-1]
+
+            if base_rate is not None and quote_rate is not None:
+                diff = base_rate - quote_rate
+                if diff > 1.5:
+                    biases.append(f"BULLISH_BIAS (Rate diff: +{diff:.1f}%)")
+                elif diff < -1.5:
+                    biases.append(f"BEARISH_BIAS (Rate diff: {diff:.1f}%)")
+                else:
+                    biases.append(f"NEUTRAL (Rates: {base_rate}% vs {quote_rate}%)")
+
+        # Filter out NEUTRAL from the display biases to keep it clean (Macro Gatekeeper: BEARISH_ONLY style)
+        active_biases = [b for b in biases if "NEUTRAL" not in b]
+        
+        return " | ".join(active_biases) if active_biases else "ALLOW"
+
+    except Exception as e:
+        print(f"  [MACRO ERROR] {ticker}: {e}")
         return "ALLOW"
 def get_macro_weight(ticker: str, direction: str, macro_data: dict) -> float:
     """

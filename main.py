@@ -2,7 +2,13 @@ import pandas as pd
 import time
 import json
 import os
+import sys
 from datetime import datetime, timedelta
+
+# Fix Windows console encoding for emoji/unicode in direction strings
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
+
 from data_fetcher import fetch_data, get_returns_matrix, get_macro_data, fetch_watchdog_data
 from clustering import cluster_assets, plot_clusters
 from hmm_analysis import detect_breakout, get_dynamic_exit_levels, get_trigger_price, calculate_z_score
@@ -166,6 +172,7 @@ def main():
     regime_results = {}
     breakout_directions = {}
     warnings_dict = {}
+    macro_statuses = {}
     
     for pair, df in data.items():
         try:
@@ -182,6 +189,7 @@ def main():
             
             if gatekeeper_status != "ALLOW":
                 pair_warnings.append(f"Macro Gatekeeper: {gatekeeper_status}")
+            macro_statuses[pair] = gatekeeper_status
                 
             
             # Calculate Dynamic Exit Levels
@@ -206,11 +214,11 @@ def main():
             macro_weight = get_macro_weight(pair, direction, macro_data)
             adjusted_prob = prob * macro_weight
             
-            if gatekeeper_status == "BEARISH_ONLY" and direction == "LONG":
-                print(f"  [VETO] {pair} LONG signal rejected: Macro Bias.")
+            if ("BEARISH" in gatekeeper_status) and direction == "LONG":
+                print(f"  [VETO] {pair} LONG signal rejected: Macro Bias ({gatekeeper_status}).")
                 direction = "⚠️LONG"
-            elif gatekeeper_status == "BULLISH_ONLY" and direction == "SHORT":
-                print(f"  [VETO] {pair} SHORT signal rejected: Macro Bias.")
+            elif ("BULLISH" in gatekeeper_status) and direction == "SHORT":
+                print(f"  [VETO] {pair} SHORT signal rejected: Macro Bias ({gatekeeper_status}).")
                 direction = "⚠️SHORT"
             elif gatekeeper_status == "SCALP_ONLY" and pair == "CL=F":
                 # Print notice but logic is handled above in TP/SL calculation
@@ -240,7 +248,10 @@ def main():
             
             # Update summary direction AFTER all filters
             breakout_directions[pair] = direction
-            warnings_dict[pair] = " | ".join(pair_warnings) if pair_warnings else ""
+            
+            # Re-format warnings to include Macro Gatekeeper prefix if not already present
+            final_warnings = pair_warnings
+            warnings_dict[pair] = " | ".join(final_warnings) if final_warnings else ""
             
             
             # --- TRACKING LOGIC ---
@@ -335,7 +346,7 @@ def main():
     hedges = find_correlation_hedges(summary[summary['Regime'] == 'Trend Breakout'])
     
     print("\n--- Raw Analysis (All Pairs) ---", flush=True)
-    print(summary[['Cluster', 'Regime', 'Direction', 'State']].sort_values(by=['Cluster', 'Regime']), flush=True)
+    print(summary[['Cluster', 'Regime', 'Direction', 'State', 'Warnings']].sort_values(by=['Cluster', 'Regime']), flush=True)
     
     print("\n--- Trend Breakout Assets (High Volatility — Big Moves) ---")
     breakouts = summary[summary['Regime'] == 'Trend Breakout']

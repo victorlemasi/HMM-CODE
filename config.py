@@ -50,24 +50,19 @@ FRED_TICKERS = {
     'CAD10Y': 'IRLTLT01CAM156N', # Canada 10Y (Monthly)
     'NZ10Y': 'IRLTLT01NZM156N',  # NZ 10Y (Monthly)
     'US_TIPS_10Y': 'DFII10',     # 10Y Real Yield
-    'UK_GILT_2Y': 'IUKG2'        # 2Y Gilt proxy
 }
 
 # Macro Filter Settings
 MAJORS_MACRO_ENABLE = True
 YIELD_THRESHOLD = 0.05  # Minimum bps change to consider it a "Macro Trend"
 
-# Central Bank Policy Rates (FRED Tickers)
+# Central Bank Policy Rates (FRED Tickers — only reliably accessible series)
+# Tickers that 404 or timeout are omitted; those pairs default to ALLOW for rate bias.
 POLICY_RATE_TICKERS = {
-    'USD': 'FEDFUNDS',      # Federal Reserve
-    'EUR': 'ECBESTRRT',     # ECB (€STR)
-    'GBP': 'IUDSOIA',       # BoE (SONIA)
-    'JPY': 'INTGSTJPM193N', # BoJ (Zero-Bound)
-    'AUD': 'INTGSTNUM193N', # RBA (4.10% Hike)
-    'CAD': 'INTGSTCAM193N', # BoC
-    'NZD': 'INTGSTNZM193N', # RBNZ
-    'CHF': 'INTGSTCHM193N'  # SNB
+    'USD': 'FEDFUNDS',  # Federal Reserve (reliable daily)
+    'EUR': 'ECBASWRP', # ECB Policy rate proxy (more reliable)
 }
+
 
 FRED_2Y_TICKERS = {
     'US2Y': 'GS2',        

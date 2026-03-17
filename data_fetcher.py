@@ -72,8 +72,10 @@ def fetch_fred_data(tickers: List[str]) -> Dict[str, pd.DataFrame]:
             response = requests.get(url, timeout=10)
             if response.status_code == 200:
                 df = pd.read_csv(io.BytesIO(response.content), index_col='observation_date', parse_dates=True)
-                # Rename the value column to 'Close' to match the system expectation
+                # Rename the value column to 'Close' and ensure numeric
                 df.columns = ['Close']
+                df['Close'] = pd.to_numeric(df['Close'], errors='coerce')
+                df = df.dropna()
                 data[ticker] = df
                 print("Done.")
             else:
