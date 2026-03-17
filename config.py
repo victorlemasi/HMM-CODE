@@ -66,14 +66,8 @@ POLICY_RATE_TICKERS = {
 
 FRED_2Y_TICKERS = {
     'US2Y': 'GS2',        
-    'GER2Y': 'IRLTLT01DEM156N', 
-    'UK2Y': 'IRLTLT01GBM156N'
-}
-
-FRED_2Y_TICKERS = {
-    'US2Y': 'GS2',        
-    'GER2Y': 'IRLTLT01DEM156N', 
-    'UK2Y': 'IRLTLT01GBM156N'
+    'GER2Y': 'IRLTLT01DEM156N', # Proxy (10Y) if 2Y is not available daily
+    'UK2Y': 'IRLTLT01GBM156N'  # UK 10Y (Placeholder proxy, better than 404)
 }
 
 # 1-minute Watchdog Tickers

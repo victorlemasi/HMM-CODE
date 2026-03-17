@@ -95,9 +95,9 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None
                 # --- APPLY THE FUNDAMENTAL BOUNCER (Global Gatekeeper) ---
                 macro_bias = check_fundamental_gatekeeper(symbol, df.index[t], macro_data)
                 
-                if macro_bias == "BEARISH_ONLY" and direction_hmm == "LONG":
+                if "BEARISH_BIAS" in macro_bias and direction_hmm == "LONG":
                     desired = 0 
-                elif macro_bias == "BULLISH_ONLY" and direction_hmm == "SHORT":
+                elif "BULLISH_BIAS" in macro_bias and direction_hmm == "SHORT":
                     desired = 0 
                 else:
                     desired = 1 if direction_hmm == 'LONG' else -1
@@ -115,8 +115,13 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None
 
         # Calculate levels for the NEW desired position
         current_price = df['Close'].iloc[t]
-        macro_bias_val = check_fundamental_gatekeeper(symbol, df.index[t], macro_data) if desired != 0 else None
-        is_scalp_active = (symbol == "CL=F" and macro_bias_val == "SCALP_ONLY")
+        macro_bias_val = check_fundamental_gatekeeper(symbol, df.index[t], macro_data) if desired != 0 else ""
+        
+        # Determine macro phase for trigger logic
+        from main import check_macro_alignment
+        macro_phase = check_macro_alignment(symbol, direction_hmm, macro_data) if desired != 0 else "TRAP_PHASE"
+        
+        is_scalp_active = (symbol == "CL=F" and "SCALP_ONLY" in macro_bias_val)
         tp_level, sl_level = get_dynamic_exit_levels(regime, current_price, current_atr, direction, ticker=symbol, is_scalp=is_scalp_active)
         
         # --- REGIME SHIFT EXIT ---
@@ -134,8 +139,8 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None
         
         # 1.2 Candle Filter: Calculate Trigger Price for Majors
         trigger_price = None
-        if symbol in MAJORS_FIX_LIST and regime == "Trend Breakout":
-            trigger_price = get_trigger_price(df.iloc[:t], regime, direction, current_atr)
+        if symbol in MAJORS_FIX_LIST and regime == "Trend Breakout" and direction != "None":
+            trigger_price = get_trigger_price(df.iloc[:t], regime, direction, current_atr, macro_phase=macro_phase)
 
         # ── Intra-step Simulation ──────────────────────────────────────────
         for sub_t in range(t, min(t + STEP_SIZE, total_bars)):
