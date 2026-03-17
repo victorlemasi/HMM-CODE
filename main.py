@@ -98,14 +98,19 @@ def get_yield_spread_momentum(ticker, macro_data):
     base_df = macro_data[base_ticker]
     quote_df = macro_data[quote_ticker]
     
-    # Calculate spread
-    spread = base_df['Close'] - quote_df['Close']
+    # Align indices to handle mixed frequencies (Daily vs Monthly)
+    # Note: macro_data from get_macro_data() already contains pandas DataFrames
+    combined = pd.DataFrame({
+        'base': base_df['Close'],
+        'quote': quote_df['Close']
+    }).sort_index().ffill().dropna()
     
-    # 5-bar momentum
-    if len(spread) < 6:
+    if len(combined) < 20:
         return 0
         
-    momentum = spread.iloc[-1] - spread.iloc[-5]
+    lb = min(len(combined) - 1, 240) # ~10 trading days
+    spread = combined['base'] - combined['quote']
+    momentum = spread.iloc[-1] - spread.iloc[-lb]
     return momentum
 
 def check_macro_alignment(ticker, direction, macro_data):

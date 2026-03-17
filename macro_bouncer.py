@@ -38,7 +38,7 @@ def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
         biases = []
         
         # --- NEW GENERIC MACRO: Yield Spread Momentum (Applicable to ALL Pairs) ---
-        from config import ASSET_MAPPINGS, YIELD_TICKERS, FRED_TICKERS, POLICY_RATE_TICKERS
+        from config import ASSET_MAPPINGS, YIELD_TICKERS, FRED_TICKERS
         if ticker in ASSET_MAPPINGS and ASSET_MAPPINGS[ticker]['type'] == 'macro':
             mapping = ASSET_MAPPINGS[ticker]
             base_y_tkr = YIELD_TICKERS.get(mapping['base']) or FRED_TICKERS.get(mapping['base'])
@@ -47,29 +47,36 @@ def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
             base_y_df = macro_data.get(base_y_tkr)
             quote_y_df = macro_data.get(quote_y_tkr)
             
-            if base_y_df is not None and quote_y_df is not None:
-                # Ensure indices are UTC-aware
-                if base_y_df.index.tzinfo is None:
-                    base_y_df.index = base_y_df.index.tz_localize('UTC')
-                if quote_y_df.index.tzinfo is None:
-                    quote_y_df.index = quote_y_df.index.tz_localize('UTC')
+            if base_y_df is not None and quote_y_df is not None and not base_y_df.empty and not quote_y_df.empty:
+                # Ensure indices are UTC-aware before aligning
+                b_df = base_y_df.copy()
+                q_df = quote_y_df.copy()
+                if b_df.index.tzinfo is None: b_df.index = b_df.index.tz_localize('UTC')
+                else: b_df.index = b_df.index.tz_convert('UTC')
+                if q_df.index.tzinfo is None: q_df.index = q_df.index.tz_localize('UTC')
+                else: q_df.index = q_df.index.tz_convert('UTC')
 
-                b_slice = base_y_df[base_y_df.index <= current_time]
-                q_slice = quote_y_df[quote_y_df.index <= current_time]
+                # Align indices to handle mixed frequencies (e.g. Daily vs Monthly)
+                combined = pd.DataFrame({
+                    'base': b_df['Close'],
+                    'quote': q_df['Close']
+                }).sort_index().ffill().dropna()
                 
-                if len(b_slice) >= 2 and len(q_slice) >= 2:
-                    # Frequency-aware lookback: 120 bars for hourly, 2 for monthly
-                    lb = 120 if len(b_slice) > 120 else 2
+                # Filter up to current_time
+                combined = combined[combined.index <= current_time]
+                
+                if len(combined) >= 50:
+                    # Lookback for momentum: 240 bars (~10 trading days for hourly data)
+                    lb = min(len(combined) - 1, 240)
                     
-                    spread_curr = b_slice['Close'].iloc[-1] - q_slice['Close'].iloc[-1]
-                    spread_prev = b_slice['Close'].iloc[-lb] - q_slice['Close'].iloc[-lb]
-                    momentum = spread_curr - spread_prev
+                    spread = combined['base'] - combined['quote']
+                    momentum = spread.iloc[-1] - spread.iloc[-lb]
                     
                     # 0.03% (3 bps) threshold for sensitivity
                     if momentum < -0.03: 
-                        biases.append("BEARISH_BIAS (Yields)" if not ticker.startswith("USD") else "BULLISH_BIAS (Yields)")
+                        biases.append("BEARISH_BIAS (Yields)")
                     elif momentum > 0.03:
-                        biases.append("BULLISH_BIAS (Yields)" if not ticker.startswith("USD") else "BEARISH_BIAS (Yields)")
+                        biases.append("BULLISH_BIAS (Yields)")
                     else:
                         biases.append("NEUTRAL (Yields)")
 
