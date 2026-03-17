@@ -221,24 +221,52 @@ def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: 
     # 2. Asset-Specific HMM Selection
     best_n = ASSET_N_COMPONENTS.get(ticker, ASSET_N_COMPONENTS.get('DEFAULT', 3))
     
-    # 2.1 Fit HMM (Daily Retraining logic: fit if model not provided)
+    # 2.1 Fit HMM with Fallback logic
     if model is None:
-        try:
-            model = GaussianHMM(
-                n_components=best_n, covariance_type="diag",
-                n_iter=HMM_N_ITER, tol=1e-2, random_state=42,
-                covars_prior=HMM_COVARS_PRIOR,
-                min_covar=HMM_MIN_COVAR
-            )
-            model.fit(features_scaled)
-        except Exception as e:
-            # Handle non-convergence or math errors
-            if "Model is not converging" in str(e):
-                 print(f"Model is not converging for {ticker}")
-            raise ValueError(f"Could not fit HMM model: {e}")
+        n_tries = [best_n, 3, 2] if best_n > 3 else [3, 2]
+        # Remove duplicates while preserving order
+        n_tries = list(dict.fromkeys(n_tries))
+        
+        last_exception = None
+        for n in n_tries:
+            try:
+                model = GaussianHMM(
+                    n_components=n, covariance_type="diag",
+                    n_iter=HMM_N_ITER, tol=1e-2, random_state=42,
+                    covars_prior=HMM_COVARS_PRIOR,
+                    min_covar=HMM_MIN_COVAR,
+                    init_params="stmc", params="stmc" # Ensure robust initialization
+                )
+                model.fit(features_scaled)
+                
+                # Validation: Check for invalid transition matrices (zero-sum rows)
+                if hasattr(model, 'transmat_'):
+                    row_sums = model.transmat_.sum(axis=1)
+                    if not np.allclose(row_sums, 1.0):
+                        model = None
+                        raise ValueError("Invalid transmat: rows do not sum to 1")
+                
+                best_n = n # Update best_n in case we fell back
+                break
+            except Exception as e:
+                model = None
+                last_exception = e
+                continue
+        
+        if model is None or not hasattr(model, 'monitor_'):
+            # FINAL SAFETY NET: If HMM fails completely, use simple technical regime logic
+            print(f"CRITICAL: HMM failed for {ticker}. Using simple statistical fallback.")
+            avg_vol = float(df['Volatility'].mean())
+            curr_vol = float(df['Volatility'].iloc[-1])
+            avg_ret = float(df['Returns'].mean())
+            
+            regime = "Trend Breakout" if curr_vol > avg_vol * 1.5 else ("Mean Reversion" if curr_vol > avg_vol else "Consolidation")
+            direction = "LONG" if avg_ret > 0 else "SHORT"
+            current_atr = float(df['ATR'].iloc[-1])
+            
+            return (regime == "Trend Breakout"), direction, regime, 0, current_atr, 1.0
     else:
-        # If model provided (e.g. from a cache), we just use it
-        pass
+        best_n = model.n_components
 
     states = model.predict(features_scaled)
     # Convert to plain Python ints throughout to avoid numpy hashability issues
@@ -265,27 +293,38 @@ def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: 
     # Sort KMeans clusters: low variance = Consolidation, high = Trend Breakout
     km_sorted = np.argsort(km_variances)   # [lowest_var_cluster, ..., highest]
     
+    regime_names = ["Consolidation", "Mean Reversion", "Trend Breakout"]
     if best_n == 4 and ticker == 'GC=F':
-        km_rank = {int(km_sorted[0]): "Consolidation",
-                   int(km_sorted[1]): "Mean Reversion",
-                   int(km_sorted[2]): "Trend Breakout",
-                   int(km_sorted[3]): "Safe Haven Spike"}
-    else:
-        km_rank = {int(km_sorted[0]): "Consolidation",
-                   int(km_sorted[1]): "Mean Reversion",
-                   int(km_sorted[2]): "Trend Breakout"}
+        regime_names.append("Safe Haven Spike")
+        
+    km_rank = {int(km_sorted[i]): regime_names[i] for i in range(len(km_sorted))}
 
     # Build final label map: HMM state → regime string (via KMeans cluster)
     labels = {int(i): km_rank[int(hmm_to_km[i])] for i in range(best_n)}
 
-    # Build per-state return metrics for direction
+    # Build per-state return metrics for direction and variance
     state_metrics = {}
     states_arr = np.array(states)
     for i in range(best_n):
         mask = (states_arr == i)
-        state_metrics[i] = {
-            'ret': float(df['Returns'].values[mask].mean()) if np.sum(mask) > 0 else 0.0
-        }
+        if np.sum(mask) > 0:
+            state_metrics[i] = {
+                'ret': float(df['Returns'].values[mask].mean()),
+                'var': float(features_scaled[mask].var(axis=0).sum())
+            }
+        else:
+            state_metrics[i] = {'ret': 0.0, 'var': 999.0}
+
+    # Final Patch: If crucial labels are missing, force them based on state variances
+    for needed in ["Consolidation", "Trend Breakout"]:
+        if needed not in set(labels.values()):
+            if needed == "Consolidation":
+                # State with absolute lowest variance
+                target_id = min(state_metrics.keys(), key=lambda k: state_metrics[k]['var'])
+            else:
+                # State with absolute highest variance
+                target_id = max(state_metrics.keys(), key=lambda k: state_metrics[k]['var'])
+            labels[target_id] = needed
 
     regime = labels[current_state_id]
 
