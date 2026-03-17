@@ -37,19 +37,20 @@ COMMODITY_TICKERS = {
     'GOLD': 'GC=F'
 }
 YIELD_TICKERS = {
-    'US10Y': '^TNX',
-    'DXY': 'DX-Y.NYB',
-    'NZ10Y_LIVE': '^NZ10'
+    'DXY': 'DX-Y.NYB'
 }
 
 FRED_TICKERS = {
-    'NZ10Y': 'IRLTLT01NZM156N',
-    'NZ_OCR': 'IRSTCI01NZM156N',
-    'UK10Y': 'IRLTLT01GBM156N',  # UK Government Bond Yield (Long-term)
-    'GER10Y': 'IRLTLT01DEM156N', # Germany Government Bond Yield (Long-term)
-    'UK_GILT_2Y': 'IUKG2',       # 2Y Gilt proxy
-    'US_TIPS_10Y': 'DFII10',      # 10Y Real Yield
-    'AUD10Y': 'IRLTLT01AUM156N'  # Australia 10Y Bond Yield
+    'US10Y': 'DGS10',            # USA 10Y (Daily)
+    'GER10Y': 'IRLTLT01DEM156N', # Germany 10Y (Monthly)
+    'UK10Y': 'IRLTLT01GBM156N',  # UK 10Y (Monthly)
+    'JPY10Y': 'IRLTLT01JPM156N', # Japan 10Y (Monthly)
+    'CHF10Y': 'IRLTLT01CHM156N', # Switzerland 10Y (Monthly)
+    'AUD10Y': 'IRLTLT01AUM156N', # Australia 10Y (Monthly)
+    'CAD10Y': 'IRLTLT01CAM156N', # Canada 10Y (Monthly)
+    'NZ10Y': 'IRLTLT01NZM156N',  # NZ 10Y (Monthly)
+    'US_TIPS_10Y': 'DFII10',     # 10Y Real Yield
+    'UK_GILT_2Y': 'IUKG2'        # 2Y Gilt proxy
 }
 
 # Macro Filter Settings
@@ -58,13 +59,14 @@ YIELD_THRESHOLD = 0.05  # Minimum bps change to consider it a "Macro Trend"
 
 # Central Bank Policy Rates (FRED Tickers)
 POLICY_RATE_TICKERS = {
-    'USD': 'FEDFUNDS',
-    'EUR': 'ECBMRRFR',
-    'GBP': 'IRLTLT01GBM156N',
-    'JPY': 'IRSTCI01JPM156N',
-    'AUD': 'IRSTCI01AUM156N',
-    'CAD': 'IRSTCI01CAM156N',
-    'NZD': 'IRSTCI01NZM156N'
+    'USD': 'FEDFUNDS',      # Federal Reserve
+    'EUR': 'ECBESTRRT',     # ECB (€STR)
+    'GBP': 'IUDSOIA',       # BoE (SONIA)
+    'JPY': 'INTGSTJPM193N', # BoJ (Zero-Bound)
+    'AUD': 'INTGSTNUM193N', # RBA (4.10% Hike)
+    'CAD': 'INTGSTCAM193N', # BoC
+    'NZD': 'INTGSTNZM193N', # RBNZ
+    'CHF': 'INTGSTCHM193N'  # SNB
 }
 
 FRED_2Y_TICKERS = {
@@ -88,10 +90,32 @@ WATCHDOG_JUMP_THRESHOLDS = {
 }
 
 ASSET_MAPPINGS = {
-    'USDCAD=X': {'type': 'commodity', 'key': 'OIL'},
-    'USDJPY=X': {'type': 'yield', 'key': 'US10Y'},
-    'EURUSD=X': {'type': 'macro', 'base': 'GER10Y', 'quote': 'US10Y'},
-    'GBPUSD=X': {'type': 'macro', 'base': 'UK10Y', 'quote': 'US10Y'},
+    # Majors
+    'EURUSD=X': {'type': 'macro', 'base': 'GER10Y', 'quote': 'US10Y', 'base_currency': 'EUR', 'quote_currency': 'USD'},
+    'GBPUSD=X': {'type': 'macro', 'base': 'UK10Y', 'quote': 'US10Y', 'base_currency': 'GBP', 'quote_currency': 'USD'},
+    'USDJPY=X': {'type': 'macro', 'base': 'US10Y', 'quote': 'JPY10Y', 'base_currency': 'USD', 'quote_currency': 'JPY'},
+    'USDCHF=X': {'type': 'macro', 'base': 'US10Y', 'quote': 'CHF10Y', 'base_currency': 'USD', 'quote_currency': 'CHF'},
+    'AUDUSD=X': {'type': 'macro', 'base': 'AUD10Y', 'quote': 'US10Y', 'base_currency': 'AUD', 'quote_currency': 'USD'},
+    'USDCAD=X': {'type': 'macro', 'base': 'US10Y', 'quote': 'CAD10Y', 'base_currency': 'USD', 'quote_currency': 'CAD'},
+    'NZDUSD=X': {'type': 'macro', 'base': 'NZ10Y', 'quote': 'US10Y', 'base_currency': 'NZD', 'quote_currency': 'USD'},
+    
+    # Minors / Crosses
+    'EURGBP=X': {'type': 'macro', 'base': 'GER10Y', 'quote': 'UK10Y', 'base_currency': 'EUR', 'quote_currency': 'GBP'},
+    'EURJPY=X': {'type': 'macro', 'base': 'GER10Y', 'quote': 'JPY10Y', 'base_currency': 'EUR', 'quote_currency': 'JPY'},
+    'GBPJPY=X': {'type': 'macro', 'base': 'UK10Y', 'quote': 'JPY10Y', 'base_currency': 'GBP', 'quote_currency': 'JPY'},
+    'EURCHF=X': {'type': 'macro', 'base': 'GER10Y', 'quote': 'CHF10Y', 'base_currency': 'EUR', 'quote_currency': 'CHF'},
+    'GBPCHF=X': {'type': 'macro', 'base': 'UK10Y', 'quote': 'CHF10Y', 'base_currency': 'GBP', 'quote_currency': 'CHF'},
+    'AUDJPY=X': {'type': 'macro', 'base': 'AUD10Y', 'quote': 'JPY10Y', 'base_currency': 'AUD', 'quote_currency': 'JPY'},
+    'NZDJPY=X': {'type': 'macro', 'base': 'NZ10Y', 'quote': 'JPY10Y', 'base_currency': 'NZD', 'quote_currency': 'JPY'},
+    'CHFJPY=X': {'type': 'macro', 'base': 'CHF10Y', 'quote': 'JPY10Y', 'base_currency': 'CHF', 'quote_currency': 'JPY'},
+    'EURAUD=X': {'type': 'macro', 'base': 'GER10Y', 'quote': 'AUD10Y', 'base_currency': 'EUR', 'quote_currency': 'AUD'},
+    'EURNZD=X': {'type': 'macro', 'base': 'GER10Y', 'quote': 'NZ10Y', 'base_currency': 'EUR', 'quote_currency': 'NZD'},
+    'GBPAUD=X': {'type': 'macro', 'base': 'UK10Y', 'quote': 'AUD10Y', 'base_currency': 'GBP', 'quote_currency': 'AUD'},
+    'GBPNZD=X': {'type': 'macro', 'base': 'UK10Y', 'quote': 'NZ10Y', 'base_currency': 'GBP', 'quote_currency': 'NZD'},
+    'AUDNZD=X': {'type': 'macro', 'base': 'AUD10Y', 'quote': 'NZ10Y', 'base_currency': 'AUD', 'quote_currency': 'NZD'},
+    
+    # Commodities
+    'GC=F':     {'type': 'commodity', 'key': 'GOLD'},
     'CL=F':     {'type': 'commodity_inverse', 'key': 'DXY'} # Oil inverse to Dollar
 }
 

@@ -77,14 +77,16 @@ def get_yield_spread_momentum(ticker, macro_data):
     quote_ticker = YIELD_TICKERS.get(mapping['quote']) or FRED_TICKERS.get(mapping['quote'])
     
     if base_ticker not in macro_data or quote_ticker not in macro_data or macro_data[base_ticker].empty or macro_data[quote_ticker].empty:
-        # Fallback to DXY momentum
-        dxy_ticker = YIELD_TICKERS.get('DXY')
-        if dxy_ticker in macro_data and not macro_data[dxy_ticker].empty:
-            dxy_df = macro_data[dxy_ticker]
-            if len(dxy_df) >= 6:
-                # If DXY is rising, USD is strengthening -> Negative momentum for EURUSD/GBPUSD
-                momentum = dxy_df['Close'].iloc[-1] - dxy_df['Close'].iloc[-5]
-                return -momentum
+        # Fallback to DXY momentum for USD pairs if specific yields are missing
+        if "USD" in ticker:
+            dxy_ticker = 'DX-Y.NYB'
+            if dxy_ticker in macro_data and not macro_data[dxy_ticker].empty:
+                dxy_df = macro_data[dxy_ticker]
+                if len(dxy_df) >= 6:
+                    # If DXY is rising, USD is strengthening -> Negative momentum for EURUSD/GBPUSD
+                    momentum = dxy_df['Close'].iloc[-1] - dxy_df['Close'].iloc[-5]
+                    # If USD is base (USDJPY, USDCHF, USDCAD), DXY up is positive momentum
+                    return momentum if ticker.startswith("USD") else -momentum
         return 0
         
     base_df = macro_data[base_ticker]
@@ -104,8 +106,9 @@ def check_macro_alignment(ticker, direction, macro_data):
     """
     Determines if the macro trend supports the technical breakout.
     """
-    if not MAJORS_MACRO_ENABLE or ticker not in MAJORS_FIX_LIST:
-        return "TRAP_PHASE"
+    from config import ASSET_MAPPINGS
+    if not MAJORS_MACRO_ENABLE or ticker not in ASSET_MAPPINGS or ASSET_MAPPINGS[ticker]['type'] != 'macro':
+        return "WIN_PHASE" # Allow if macro is disabled or not a macro asset
         
     momentum = get_yield_spread_momentum(ticker, macro_data)
     
@@ -189,10 +192,14 @@ def main():
             if is_scalp:
                 print(f"  {pair} | SCALP MODE: Applied 1:1 ATR targets.")
             
-            # Calculate 1.2 Candle Trigger for Majors
+            # Calculate 1.2 Candle Trigger for All Macro Pairs
             trigger = None
-            macro_phase = "TRAP_PHASE"
-            if pair in MAJORS_FIX_LIST and regime == "Trend Breakout":
+            macro_phase = "WIN_PHASE" # Default to allow for non-macro assets
+            
+            from config import ASSET_MAPPINGS
+            is_macro_asset = pair in ASSET_MAPPINGS and ASSET_MAPPINGS[pair]['type'] == 'macro'
+            
+            if is_macro_asset and regime == "Trend Breakout":
                 macro_phase = check_macro_alignment(pair, direction, macro_data)
             
             # --- MACRO WEIGHTING (Applied AFTER gatekeeper) ---
@@ -225,12 +232,11 @@ def main():
                  pair_warnings.append(f"Low Confidence ({adjusted_prob:.2f} < {conf_thresh})")
                  direction = f"⚠️{direction}"
 
-            # Calculate 1.2 Candle Trigger for Majors
+            # Calculate 1.2 Candle Trigger
             trigger = None
-            if pair in MAJORS_FIX_LIST and regime == "Trend Breakout" and direction != "None":
+            if regime == "Trend Breakout" and direction not in ["None", "⚠️LONG", "⚠️SHORT"]:
+                # Majors always use 1.2 logic; others use it if in a macro-supported phase
                 trigger = get_trigger_price(df, regime, direction, current_atr, macro_phase=macro_phase)
-            elif regime == "Trend Breakout" and direction != "None":
-                trigger = get_trigger_price(df, regime, direction, current_atr, macro_phase="WIN_PHASE")
             
             # Update summary direction AFTER all filters
             breakout_directions[pair] = direction

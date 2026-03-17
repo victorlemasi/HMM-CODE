@@ -1,26 +1,62 @@
 {
-    "EURUSD=X": {
-        "dir": "SHORT",
-        "entry_time": "2026-03-16T17:38:24.488094",
+    "USDJPY=X": {
+        "dir": "LONG",
+        "entry_time": "2026-03-17T11:34:24.013986",
         "regime": "Mean Reversion",
         "bars_active": 0
     },
-    "USDCHF=X": {
-        "dir": "SHORT",
-        "entry_time": "2026-03-16T17:38:24.910386",
+    "AUDUSD=X": {
+        "dir": "LONG",
+        "entry_time": "2026-03-17T11:34:24.507803",
         "regime": "Mean Reversion",
         "bars_active": 0
-    },
-    "USDCAD=X": {
-        "dir": "SHORT",
-        "entry_time": "2026-03-16T17:13:45.702278",
-        "regime": "Mean Reversion",
-        "bars_active": 1
     },
     "EURJPY=X": {
         "dir": "SHORT",
-        "entry_time": "2026-03-16T17:13:46.237036",
+        "entry_time": "2026-03-17T11:34:26.031358",
         "regime": "Mean Reversion",
-        "bars_active": 1
+        "bars_active": 0
+    },
+    "EURCHF=X": {
+        "dir": "SHORT",
+        "entry_time": "2026-03-17T11:34:26.511879",
+        "regime": "Mean Reversion",
+        "bars_active": 0
+    },
+    "GBPCHF=X": {
+        "dir": "SHORT",
+        "entry_time": "2026-03-17T11:34:26.701166",
+        "regime": "Mean Reversion",
+        "bars_active": 0
+    },
+    "AUDJPY=X": {
+        "dir": "LONG",
+        "entry_time": "2026-03-17T11:34:26.901197",
+        "regime": "Mean Reversion",
+        "bars_active": 0
+    },
+    "NZDJPY=X": {
+        "dir": "SHORT",
+        "entry_time": "2026-03-17T11:34:27.015634",
+        "regime": "Mean Reversion",
+        "bars_active": 0
+    },
+    "EURAUD=X": {
+        "dir": "SHORT",
+        "entry_time": "2026-03-17T11:34:27.696111",
+        "regime": "Mean Reversion",
+        "bars_active": 0
+    },
+    "GBPAUD=X": {
+        "dir": "SHORT",
+        "entry_time": "2026-03-17T11:34:28.197264",
+        "regime": "Mean Reversion",
+        "bars_active": 0
+    },
+    "GBPNZD=X": {
+        "dir": "LONG",
+        "entry_time": "2026-03-17T11:34:28.376744",
+        "regime": "Mean Reversion",
+        "bars_active": 0
     }
 }
