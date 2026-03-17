@@ -60,7 +60,7 @@ YIELD_THRESHOLD = 0.05  # Minimum bps change to consider it a "Macro Trend"
 # Tickers that 404 or timeout are omitted; those pairs default to ALLOW for rate bias.
 POLICY_RATE_TICKERS = {
     'USD': 'FEDFUNDS',  # Federal Reserve (reliable daily)
-    'EUR': 'ECBASWRP', # ECB Policy rate proxy (more reliable)
+    'EUR': 'ECBMRRFR', # ECB Main Refinancing Operations Rate (reliable)
 }
 
 
