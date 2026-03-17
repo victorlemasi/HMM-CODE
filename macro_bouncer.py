@@ -72,10 +72,11 @@ def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
                     spread = combined['base'] - combined['quote']
                     momentum = spread.iloc[-1] - spread.iloc[-lb]
                     
-                    # 0.03% (3 bps) threshold for sensitivity
-                    if momentum < -0.03: 
+                    from config import YIELD_THRESHOLD
+                    # Use synced config threshold
+                    if momentum < -YIELD_THRESHOLD: 
                         biases.append("BEARISH_BIAS (Yields)")
-                    elif momentum > 0.03:
+                    elif momentum > YIELD_THRESHOLD:
                         biases.append("BULLISH_BIAS (Yields)")
                     else:
                         biases.append("NEUTRAL (Yields)")

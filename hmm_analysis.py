@@ -392,8 +392,10 @@ def get_dynamic_exit_levels(regime, price, atr, direction, ticker=None, is_scalp
             tp_dist = atr * MAJORS_TP_MULTIPLIER
             sl_dist = atr * 1.2 # Give it room to breathe
         else:
-            tp_dist = atr * 2.0 # Standard TP for successful pairs (was implicit 3.0 before, but keeping standard 2.0x tp_dist or wait, let's look at what standard was. User says winners have 1.0 Candle / 2.0x TP logic. So changing to 2.0)
-            sl_dist = atr * 1.0 # Standard tight stop
+            tp_dist = atr * 2.0
+            # Commodities get more room (1.5x ATR) to avoid "noise" stops
+            is_commodity = ticker in ['GC=F', 'CL=F'] or ('=F' in str(ticker))
+            sl_dist = atr * 1.5 if is_commodity else atr * 1.0
     else:
         return None, None
 

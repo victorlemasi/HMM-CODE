@@ -18,9 +18,9 @@ N_CLUSTERS = 4
 
 # HMM settings
 HMM_COMPONENTS = 3  # Consolidation, Mean Reversion, Trend Breakout
-HMM_N_ITER = 5000   # Increased from 1000 for convergence
-HMM_COVARS_PRIOR = 1e-2 # Bayesian prior for stability
-HMM_MIN_COVAR = 1e-2    # Prevent numerical instability/collapse
+HMM_N_ITER = 1000   # Reset to 1000 now that covar floor is lowered
+HMM_COVARS_PRIOR = 1e-3 # Lowered for better convergence
+HMM_MIN_COVAR = 1e-3    # Lowered to prevent 'not converging' errors
 ATR_MULTIPLIER_FX = 0.15 
 ATR_MULTIPLIER_GOLD = 0.2
 
@@ -54,7 +54,7 @@ FRED_TICKERS = {
 
 # Macro Filter Settings
 MAJORS_MACRO_ENABLE = True
-YIELD_THRESHOLD = 0.05  # Minimum bps change to consider it a "Macro Trend"
+YIELD_THRESHOLD = 0.03  # Synced with macro_bouncer.py consensus
 
 # Central Bank Policy Rates (FRED Tickers — only reliably accessible series)
 # Tickers that 404 or timeout are omitted; those pairs default to ALLOW for rate bias.
@@ -110,7 +110,6 @@ ASSET_MAPPINGS = {
 
 # Asset-Specific HMM Components
 ASSET_N_COMPONENTS = {
-    'GC=F': 4,   # Gold: Consolidation, Mean Reversion, Trend, Safe Haven Spike
     'DEFAULT': 3
 }
 
