@@ -54,7 +54,7 @@ FRED_TICKERS = {
 
 # Macro Filter Settings
 MAJORS_MACRO_ENABLE = True
-YIELD_THRESHOLD = 0.03  # Synced with macro_bouncer.py consensus
+YIELD_THRESHOLD = 0.15  # Drastically widened to ignore US yield noise
 
 # Central Bank Policy Rates (FRED Tickers — only reliably accessible series)
 # Tickers that 404 or timeout are omitted; those pairs default to ALLOW for rate bias.
