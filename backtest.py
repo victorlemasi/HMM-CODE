@@ -95,10 +95,10 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None
                 # --- APPLY THE FUNDAMENTAL BOUNCER (Global Gatekeeper) ---
                 macro_bias = check_fundamental_gatekeeper(symbol, df.index[t], macro_data)
                 
-                if "BEARISH_BIAS" in macro_bias and direction_hmm == "LONG":
+                if "BEARISH" in macro_bias and direction_hmm == "LONG":
                     desired = 0 
                     print(f"      [VETO] {symbol} LONG rejected by Macro Bias: {macro_bias}")
-                elif "BULLISH_BIAS" in macro_bias and direction_hmm == "SHORT":
+                elif "BULLISH" in macro_bias and direction_hmm == "SHORT":
                     desired = 0 
                     print(f"      [VETO] {symbol} SHORT rejected by Macro Bias: {macro_bias}")
                 else:
@@ -174,7 +174,8 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None
                     continue
 
                 # --- PARABOLIC SAR TRAILING STOPS (Efficiency Equilibrium) ---
-                if symbol == "EURUSD=X":
+                from config import EURUSD_FIX_LIST
+                if symbol in EURUSD_FIX_LIST:
                     pnl_atr = (close - entry_price) / current_atr if position == 1 else (entry_price - close) / current_atr
                     if pnl_atr > 0.5:
                         move = pnl_atr * 0.5 * current_atr

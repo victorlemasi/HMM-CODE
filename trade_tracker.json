@@ -1,20 +1,32 @@
 {
-    "AUDUSD=X": {
-        "dir": "LONG",
-        "entry_time": "2026-03-18T08:32:55.345107",
-        "regime": "Trend Breakout",
+    "GBPJPY=X": {
+        "dir": "SHORT",
+        "entry_time": "2026-03-18T09:55:41.045542",
+        "regime": "Mean Reversion",
+        "bars_active": 0
+    },
+    "NZDJPY=X": {
+        "dir": "SHORT",
+        "entry_time": "2026-03-18T09:11:02.708213",
+        "regime": "Mean Reversion",
         "bars_active": 1
     },
-    "EURJPY=X": {
+    "EURAUD=X": {
         "dir": "SHORT",
-        "entry_time": "2026-03-18T08:32:55.990819",
+        "entry_time": "2026-03-18T09:11:02.958800",
         "regime": "Mean Reversion",
         "bars_active": 1
     },
     "GBPNZD=X": {
         "dir": "LONG",
-        "entry_time": "2026-03-17T22:05:55.125431",
+        "entry_time": "2026-03-18T09:55:42.352154",
         "regime": "Mean Reversion",
-        "bars_active": 2
+        "bars_active": 0
+    },
+    "AUDNZD=X": {
+        "dir": "LONG",
+        "entry_time": "2026-03-18T09:11:03.591301",
+        "regime": "Mean Reversion",
+        "bars_active": 1
     }
 }

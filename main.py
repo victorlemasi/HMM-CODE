@@ -230,7 +230,7 @@ def main():
             
             # --- EFFICIENCY EQUILIBRIUM: Confidence Thresholds ---
             from config import MAJORS_MIN_CONFIDENCE, EURUSD_FIX_LIST, LUNCH_ZONE
-            conf_thresh = MAJORS_MIN_CONFIDENCE if pair in EURUSD_FIX_LIST else 0.7
+            conf_thresh = MAJORS_MIN_CONFIDENCE if pair in MAJORS_FIX_LIST else 0.7
             
             # London Lunch Penalty
             hour_utc = current_time.hour
