@@ -281,12 +281,7 @@ def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: 
     # Convert to plain Python ints throughout to avoid numpy hashability issues
     states = [int(s) for s in states]
     
-    # --- STICKY TRANSITIONS: Require 2 consecutive bars to confirm a state change ---
-    if len(states) >= 2 and states[-1] != states[-2]:
-        # State just changed this bar! Stick to the previous state to filter fake breakouts.
-        current_state_id = states[-2]
-    else:
-        current_state_id = states[-1]
+    current_state_id = states[-1]
 
     # 3. Regime Labeling via KMeans "Hard Boundary" approach
     # Run KMeans on the full feature space to find 3 decisive cluster centers
@@ -341,6 +336,27 @@ def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: 
                 target_id = max(state_metrics.keys(), key=lambda k: state_metrics[k]['var'])
             labels[target_id] = needed
 
+    # --- DYNAMIC STICKY TRANSITIONS (Beta 2) ---
+    # Apply persistence rules based on the mapped string regime label
+    raw_regime_curr = labels.get(current_state_id, "Consolidation")
+    
+    if len(states) >= 3:
+        raw_regime_prev = labels.get(states[-2], "Consolidation")
+        raw_regime_prev2 = labels.get(states[-3], "Consolidation")
+        
+        if raw_regime_curr == "Mean Reversion":
+            # Requires 3 consecutive bars to confirm Mean Reversion
+            if raw_regime_curr != raw_regime_prev or raw_regime_curr != raw_regime_prev2:
+                current_state_id = states[-2] # Revert due to flickering
+        else:
+            # Requires 2 consecutive bars for other regimes
+            if raw_regime_curr != raw_regime_prev:
+                current_state_id = states[-2]
+    elif len(states) == 2:
+        raw_regime_prev = labels.get(states[-2], "Consolidation")
+        if raw_regime_curr != raw_regime_prev:
+            current_state_id = states[-2]
+            
     regime = labels[current_state_id]
 
     # 4. Statistical Separation Guard — dynamic ATR-based

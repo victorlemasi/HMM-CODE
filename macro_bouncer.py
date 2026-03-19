@@ -64,6 +64,21 @@ def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
                     elif ticker.startswith("USD"):
                         biases.append("BEARISH_ONLY") # Prevent Longing USD/XXX
         
+        # --- NEW "BETA 2": The Aussie-China Veto (HG=F Copper Proxy) ---
+        if ticker.startswith("AUD") or ticker.endswith("AUD=X"):
+            hg_df = macro_data.get('HG=F')
+            if hg_df is not None and not hg_df.empty:
+                hg_slice = hg_df[hg_df.index <= current_time]
+                if len(hg_slice) >= 10:
+                    curr_hg = hg_slice['Close'].iloc[-1]
+                    past_hg = hg_slice['Close'].iloc[-10] # 10 bar momentum
+                    if (curr_hg - past_hg) < 0:
+                        # Copper momentum is negative -> Veto AUD Longs!
+                        if ticker.startswith("AUD"):
+                            biases.append("BEARISH_ONLY")
+                        elif ticker.endswith("AUD=X"):
+                            biases.append("BULLISH_ONLY")
+                            
         # --- NEW GENERIC MACRO: Yield Spread Momentum (Applicable to ALL Pairs) ---
         from config import ASSET_MAPPINGS, YIELD_TICKERS, FRED_TICKERS
         if ticker in ASSET_MAPPINGS and ASSET_MAPPINGS[ticker]['type'] == 'macro':

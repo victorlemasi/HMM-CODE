@@ -202,6 +202,13 @@ def main():
             
             if is_scalp:
                 print(f"  {pair} | SCALP MODE: Applied 1:1 ATR targets.")
+                
+            # --- BETA 2: Commodity Vol-Cap ---
+            if pair in ["GC=F", "CL=F"]:
+                atr_mean_20 = df['ATR'].iloc[-min(20, len(df)):].mean()
+                if current_atr > 2.0 * atr_mean_20:
+                    pair_warnings.append("HALF POSITION (Vol-Cap)")
+                    print(f"  {pair} | VOL-CAP: ATR={current_atr:.4f} > 2x Mean. Recommend halving position size.")
             
             # Calculate 1.2 Candle Trigger for All Macro Pairs
             trigger = None
