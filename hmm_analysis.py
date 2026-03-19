@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from hmmlearn.hmm import GaussianHMM
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, RobustScaler
 from sklearn.cluster import KMeans
 from typing import Optional, Dict, Any, Union
 import logging
@@ -217,7 +217,7 @@ def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: 
         df = df.iloc[-max_fit_bars:]
         
     features = df[features_cols].values
-    scaler = StandardScaler()
+    scaler = RobustScaler()
     features_scaled = scaler.fit_transform(features)
     
     # 2. Asset-Specific HMM Selection
@@ -280,7 +280,13 @@ def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: 
     states = model.predict(features_scaled)
     # Convert to plain Python ints throughout to avoid numpy hashability issues
     states = [int(s) for s in states]
-    current_state_id = states[-1]
+    
+    # --- STICKY TRANSITIONS: Require 2 consecutive bars to confirm a state change ---
+    if len(states) >= 2 and states[-1] != states[-2]:
+        # State just changed this bar! Stick to the previous state to filter fake breakouts.
+        current_state_id = states[-2]
+    else:
+        current_state_id = states[-1]
 
     # 3. Regime Labeling via KMeans "Hard Boundary" approach
     # Run KMeans on the full feature space to find 3 decisive cluster centers
@@ -401,10 +407,12 @@ def get_dynamic_exit_levels(regime, price, atr, direction, ticker=None, is_scalp
             tp_dist = atr * MAJORS_TP_MULTIPLIER
             sl_dist = atr * 1.2 # Give it room to breathe
         else:
-            tp_dist = atr * 2.0
             # Commodities get more room (1.5x ATR) to avoid "noise" stops
             is_commodity = ticker in ['GC=F', 'CL=F'] or ('=F' in str(ticker))
             sl_dist = atr * 1.5 if is_commodity else atr * 1.0
+            
+            # Enforce 1.5:1 Reward-to-Risk Ratio for the "Profit Shield"
+            tp_dist = sl_dist * 1.5
     else:
         return None, None
 

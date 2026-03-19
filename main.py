@@ -272,7 +272,7 @@ def main():
                         del new_tracker[pair]
                     
                     # --- EFFICIENCY EQUILIBRIUM: Progressive SAR-style Stops ---
-                    if pair in EURUSD_FIX_LIST and direction != "None": # Only apply if signal is still active
+                    if pair in MAJORS_FIX_LIST and direction != "None": # Only apply if signal is still active
                         pnl_atr = (current_price - new_tracker[pair]['entry']) / current_atr if direction == "LONG" else (new_tracker[pair]['entry'] - current_price) / current_atr
                         if pnl_atr > 0.5:
                             # Tighten SL as price moves
