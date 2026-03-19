@@ -202,13 +202,6 @@ def main():
             
             if is_scalp:
                 print(f"  {pair} | SCALP MODE: Applied 1:1 ATR targets.")
-                
-            # --- BETA 2: Commodity Vol-Cap ---
-            if pair in ["GC=F", "CL=F"]:
-                atr_mean_20 = df['ATR'].iloc[-min(20, len(df)):].mean()
-                if current_atr > 2.0 * atr_mean_20:
-                    pair_warnings.append("HALF POSITION (Vol-Cap)")
-                    print(f"  {pair} | VOL-CAP: ATR={current_atr:.4f} > 2x Mean. Recommend halving position size.")
             
             # Calculate 1.2 Candle Trigger for All Macro Pairs
             trigger = None
@@ -279,7 +272,7 @@ def main():
                         del new_tracker[pair]
                     
                     # --- EFFICIENCY EQUILIBRIUM: Progressive SAR-style Stops ---
-                    if pair in MAJORS_FIX_LIST and direction != "None": # Only apply if signal is still active
+                    if pair in EURUSD_FIX_LIST and direction != "None": # Only apply if signal is still active
                         pnl_atr = (current_price - new_tracker[pair]['entry']) / current_atr if direction == "LONG" else (new_tracker[pair]['entry'] - current_price) / current_atr
                         if pnl_atr > 0.5:
                             # Tighten SL as price moves

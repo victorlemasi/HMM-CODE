@@ -37,48 +37,6 @@ def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
 
         biases = []
         
-        # --- NEW "MACRO REALITY": 2s10s Bull-Steepener Trap ---
-        us10y_df = macro_data.get('DGS10')
-        us2y_df = macro_data.get('GS2')
-        if us10y_df is not None and us2y_df is not None and not us10y_df.empty and not us2y_df.empty:
-            b_df = us10y_df.copy()
-            q_df = us2y_df.copy()
-            if b_df.index.tzinfo is None: b_df.index = b_df.index.tz_localize('UTC')
-            else: b_df.index = b_df.index.tz_convert('UTC')
-            if q_df.index.tzinfo is None: q_df.index = q_df.index.tz_localize('UTC')
-            else: q_df.index = q_df.index.tz_convert('UTC')
-            
-            combined = pd.DataFrame({'10Y': b_df['Close'], '2Y': q_df['Close']}).sort_index().ffill().dropna()
-            combined = combined[combined.index <= current_time]
-            
-            if len(combined) >= 20:
-                spread = combined['10Y'] - combined['2Y']
-                curr_spread = spread.iloc[-1]
-                past_spread = spread.iloc[-min(len(combined), 15)] # ~3 days momentum
-                
-                # If currently inverted (<0) but steepening rapidly (2Y falling faster than 10Y)
-                if curr_spread < 0 and (curr_spread - past_spread) > 0.05:
-                    # Deny "Long USD" trades as market braces for hard landing
-                    if ticker.endswith("USD=X") or ticker == "GC=F":
-                        biases.append("BULLISH_ONLY") # Prevent Shorting XXX/USD
-                    elif ticker.startswith("USD"):
-                        biases.append("BEARISH_ONLY") # Prevent Longing USD/XXX
-        
-        # --- NEW "BETA 2": The Aussie-China Veto (HG=F Copper Proxy) ---
-        if ticker.startswith("AUD") or ticker.endswith("AUD=X"):
-            hg_df = macro_data.get('HG=F')
-            if hg_df is not None and not hg_df.empty:
-                hg_slice = hg_df[hg_df.index <= current_time]
-                if len(hg_slice) >= 10:
-                    curr_hg = hg_slice['Close'].iloc[-1]
-                    past_hg = hg_slice['Close'].iloc[-10] # 10 bar momentum
-                    if (curr_hg - past_hg) < 0:
-                        # Copper momentum is negative -> Veto AUD Longs!
-                        if ticker.startswith("AUD"):
-                            biases.append("BEARISH_ONLY")
-                        elif ticker.endswith("AUD=X"):
-                            biases.append("BULLISH_ONLY")
-                            
         # --- NEW GENERIC MACRO: Yield Spread Momentum (Applicable to ALL Pairs) ---
         from config import ASSET_MAPPINGS, YIELD_TICKERS, FRED_TICKERS
         if ticker in ASSET_MAPPINGS and ASSET_MAPPINGS[ticker]['type'] == 'macro':

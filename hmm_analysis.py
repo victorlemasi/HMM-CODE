@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from hmmlearn.hmm import GaussianHMM
-from sklearn.preprocessing import StandardScaler, RobustScaler
+from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
 from typing import Optional, Dict, Any, Union
 import logging
@@ -217,7 +217,7 @@ def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: 
         df = df.iloc[-max_fit_bars:]
         
     features = df[features_cols].values
-    scaler = RobustScaler()
+    scaler = StandardScaler()
     features_scaled = scaler.fit_transform(features)
     
     # 2. Asset-Specific HMM Selection
@@ -280,7 +280,6 @@ def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: 
     states = model.predict(features_scaled)
     # Convert to plain Python ints throughout to avoid numpy hashability issues
     states = [int(s) for s in states]
-    
     current_state_id = states[-1]
 
     # 3. Regime Labeling via KMeans "Hard Boundary" approach
@@ -336,27 +335,6 @@ def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: 
                 target_id = max(state_metrics.keys(), key=lambda k: state_metrics[k]['var'])
             labels[target_id] = needed
 
-    # --- DYNAMIC STICKY TRANSITIONS (Beta 2) ---
-    # Apply persistence rules based on the mapped string regime label
-    raw_regime_curr = labels.get(current_state_id, "Consolidation")
-    
-    if len(states) >= 3:
-        raw_regime_prev = labels.get(states[-2], "Consolidation")
-        raw_regime_prev2 = labels.get(states[-3], "Consolidation")
-        
-        if raw_regime_curr == "Mean Reversion":
-            # Requires 3 consecutive bars to confirm Mean Reversion
-            if raw_regime_curr != raw_regime_prev or raw_regime_curr != raw_regime_prev2:
-                current_state_id = states[-2] # Revert due to flickering
-        else:
-            # Requires 2 consecutive bars for other regimes
-            if raw_regime_curr != raw_regime_prev:
-                current_state_id = states[-2]
-    elif len(states) == 2:
-        raw_regime_prev = labels.get(states[-2], "Consolidation")
-        if raw_regime_curr != raw_regime_prev:
-            current_state_id = states[-2]
-            
     regime = labels[current_state_id]
 
     # 4. Statistical Separation Guard — dynamic ATR-based
@@ -423,12 +401,10 @@ def get_dynamic_exit_levels(regime, price, atr, direction, ticker=None, is_scalp
             tp_dist = atr * MAJORS_TP_MULTIPLIER
             sl_dist = atr * 1.2 # Give it room to breathe
         else:
+            tp_dist = atr * 2.0
             # Commodities get more room (1.5x ATR) to avoid "noise" stops
             is_commodity = ticker in ['GC=F', 'CL=F'] or ('=F' in str(ticker))
             sl_dist = atr * 1.5 if is_commodity else atr * 1.0
-            
-            # Enforce 1.5:1 Reward-to-Risk Ratio for the "Profit Shield"
-            tp_dist = sl_dist * 1.5
     else:
         return None, None
 
