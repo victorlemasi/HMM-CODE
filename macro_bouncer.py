@@ -16,6 +16,49 @@ def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
         OIL_DANGER_ZONE = 98.00 
         MOM_THRESHOLD = 0.0025
         
+        # --- THE MACRO REALITY: 2s10s Steepening Trap ---
+        # If the 2Y is dropping much faster than the 10Y while still inverted, 
+        # it's a classic "Bull-Steepener" signaling a hard landing.
+        us10_df = macro_data.get('DGS10')  # US 10Y
+        us2_df = macro_data.get('GS2')     # US 2Y
+        
+        is_bull_steepener = False
+        if us10_df is not None and us2_df is not None and not us10_df.empty and not us2_df.empty:
+            # Sync indexes
+            u10 = us10_df.copy()
+            u2 = us2_df.copy()
+            if u10.index.tzinfo is None: u10.index = u10.index.tz_localize('UTC')
+            if u2.index.tzinfo is None: u2.index = u2.index.tz_localize('UTC')
+            
+            curve_df = pd.DataFrame({'US10': u10['Close'], 'US2': u2['Close']}).sort_index().ffill().dropna()
+            curve_df = curve_df[curve_df.index <= pd.to_datetime(current_time, utc=True)]
+            
+            if len(curve_df) >= 20: # Ensure enough history
+                recent_spread = curve_df['US10'].iloc[-1] - curve_df['US2'].iloc[-1]
+                past_spread = curve_df['US10'].iloc[-20] - curve_df['US2'].iloc[-20]
+                
+                # Inverted (10Y < 2Y) AND Steepening (spread becoming less negative)
+                is_inverted = recent_spread < 0
+                is_steepening = (recent_spread - past_spread) > 0.05 # 5 bps steepening over window
+                
+                if is_inverted and is_steepening:
+                    is_bull_steepener = True
+                    print(f"  [MACRO ALERT] US 2s10s Bull-Steepener Detected! (Spread: {recent_spread:.2f}%)")
+                    
+        # Apply the steepener veto
+        if is_bull_steepener:
+            # Toxic to be Long USD here.
+            # If USD is Quote (EURUSD, GBPUSD), we only allow BULLISH trades (Long EUR, Short USD)
+            if ticker in ["EURUSD=X", "GBPUSD=X", "AUDUSD=X", "NZDUSD=X", "GC=F"]:
+                biases.append("BULLISH_ONLY")
+            # If USD is Base (USDJPY, USDCHF, USDCAD), we only allow BEARISH trades (Short USD, Long JPY)
+            elif ticker in ["USDJPY=X", "USDCHF=X", "USDCAD=X"]:
+                biases.append("BEARISH_ONLY")
+                
+        DXY_WALL = 100.40
+        OIL_DANGER_ZONE = 98.00 
+        MOM_THRESHOLD = 0.0025
+        
         # Ensure current_time is a UTC-aware Timestamp
         current_time = pd.to_datetime(current_time)
         if current_time.tzinfo is None:
