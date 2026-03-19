@@ -4,6 +4,8 @@ from hmmlearn.hmm import GaussianHMM
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
 from typing import Optional, Dict, Any, Union
+import logging
+logging.getLogger("hmmlearn").setLevel(logging.ERROR)
 from config import (
     HMM_COMPONENTS, ASSET_MAPPINGS, COMMODITY_TICKERS, YIELD_TICKERS, FRED_TICKERS,
     ATR_MULTIPLIER_FX, ATR_MULTIPLIER_GOLD, MAJORS_FIX_LIST,

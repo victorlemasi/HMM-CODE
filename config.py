@@ -19,8 +19,8 @@ N_CLUSTERS = 4
 # HMM settings
 HMM_COMPONENTS = 3  # Consolidation, Mean Reversion, Trend Breakout
 HMM_N_ITER = 1000   # Reset to 1000 now that covar floor is lowered
-HMM_COVARS_PRIOR = 1e-4 # Lowered for better convergence
-HMM_MIN_COVAR = 1e-4    # Lowered to prevent 'not converging' errors
+HMM_COVARS_PRIOR = 1e-2
+HMM_MIN_COVAR = 1e-2
 ATR_MULTIPLIER_FX = 0.15 
 ATR_MULTIPLIER_GOLD = 0.2
 
