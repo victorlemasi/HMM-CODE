@@ -153,8 +153,7 @@ def main():
     
     # --- JUMP WATCHDOG CHECK ---
     if watchdog.check_for_jumps():
-        print("Trading paused due to market shock. Skipping analysis.")
-        return
+        print("INFORMATIONAL: Trading paused due to market shock. Continuing analysis for observation.")
 
     data = fetch_data(CURRENCY_PAIRS, INTERVAL, PERIOD)
     
