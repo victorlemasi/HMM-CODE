@@ -174,7 +174,6 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None
                     continue
 
                 # --- PARABOLIC SAR TRAILING STOPS (Efficiency Equilibrium) ---
-                from config import MAJORS_FIX_LIST
                 if symbol in MAJORS_FIX_LIST:
                     pnl_atr = (close - entry_price) / current_atr if position == 1 else (entry_price - close) / current_atr
                     if pnl_atr > 0.5:
