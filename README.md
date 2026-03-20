@@ -6,10 +6,11 @@ A high-sophistication quantitative scanner designed for the structural volatilit
 
 - **End-to-End Macro Pipeline**: Automated data fetching from **FRED** (St. Louis Fed) and **Yahoo Finance**. Captures 10Y Benchmark Yields and Central Bank Policy Rates (Fed Funds, ECB Rate).
 - **Fundamental Gatekeeper (Bouncer)**: Hybrid filtering using **Yield Spread Momentum** (aligned mixed frequencies) and **Policy Rate Differentials**.
-- **Regime Detection (HMM)**: Analyzes Log-Volatility and Returns across 3 states: *Consolidation*, *Mean Reversion*, and *Trend Breakout*.
+- **Regime Detection (HMM)**: Analyzes Log-Volatility and Returns across 3 states: *Consolidation*, *Mean Reversion*, and *Trend Breakout*. Uses **Absolute-Magnitude Return Ranking** for robust state classification (canonical HMM approach).
 - **Defensive Strike (1.2 Candle Logic)**: Specialized entry mechanism for major pairs (EURUSD, GBPUSD) that requires 1.2x ATR breakout confirmation to avoid "Trap Phases."
 - **War-Time Asset Guard**: Treats Gold (`GC=F`) and Oil (`CL=F`) as macro volatility sensors with strict time-exits (4h/8h) and Mahalanobis jump detection.
 - **Diversification Engine**: Automated correlation clustering (K-Means) and rebalancing to prevent over-exposure to linked currency themes.
+- **Baum-Welch Offline Training**: Dedicated module for large-scale historical parameter learning (optimized at **365 days**) to stabilize regime detection and adapt to current market volatility levels.
 
 ## 🧠 Sophisticated Logic Framework
 
@@ -41,7 +42,8 @@ Technical signals are subjected to a rigorous fundamental validation suite:
 
 ## 📈 Usage
 
-- **Live Scanner**: `python main.py` (Real-time regime detection + Tracking).
+- **HMM Trainer**: `python train_hmm.py` (Runs Baum-Welch algorithm on a 1-year window to save pre-trained models).
+- **Live Scanner**: `python main.py` (Uses pre-trained models or fits live depending on `config.py`).
 - **Architecture Backtest**: `python backtest.py` (Full 22-pair walk-forward simulation).
 
 ## 📁 Output Artifacts

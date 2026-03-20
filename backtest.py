@@ -30,7 +30,7 @@ warnings.filterwarnings("ignore")
 from data_fetcher import fetch_data, get_macro_data
 from hmm_analysis import detect_breakout, get_dynamic_exit_levels, calculate_atr, get_trigger_price, calculate_z_score, calculate_mahalanobis_distance
 from macro_bouncer import check_fundamental_gatekeeper, get_macro_weight
-from config import CURRENCY_PAIRS, MAJORS_FIX_LIST, WATCHDOG_TICKERS, WATCHDOG_JUMP_THRESHOLDS, LUNCH_ZONE, MAJORS_MIN_CONFIDENCE
+from config import CURRENCY_PAIRS, MAJORS_FIX_LIST, WATCHDOG_TICKERS, WATCHDOG_JUMP_THRESHOLDS, LUNCH_ZONE, MAJORS_MIN_CONFIDENCE, MINORS_MIN_CONFIDENCE
 
 # ─── Configuration ─────────────────────────────────────────────────────────────
 BACKTEST_PERIOD = "6mo"          # Historical data to fetch
@@ -63,13 +63,32 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None
     entry_regime = None
     entry_bar_idx = None
 
+    # Load pre-trained model for Transfer Learning
+    from config import HMM_MODELS_PATH
+    import pickle
+    import os
+    model_name = symbol.replace('=X', '').replace('=F', '')
+    model_file = os.path.join(HMM_MODELS_PATH, f"{model_name}_hmm.pkl")
+    pretrained_model = None
+    if os.path.exists(model_file):
+        try:
+            with open(model_file, 'rb') as f:
+                pretrained_model = pickle.load(f)
+        except Exception:
+            pass
+
     # Walk-forward loop
     for t in range(TRAIN_WINDOW, total_bars, STEP_SIZE):
         train_slice = df.iloc[t - TRAIN_WINDOW:t].copy()
 
         try:
-            is_breakout, direction, regime, _, current_atr, prob = detect_breakout(train_slice, ticker=symbol, macro_data=macro_data)
-        except Exception:
+            # Pass pretrained_model for fine-tuning
+            is_breakout, direction, regime, _, current_atr, prob = detect_breakout(
+                train_slice, ticker=symbol, macro_data=macro_data, model=pretrained_model
+            )
+        except Exception as e:
+            if t == TRAIN_WINDOW: # Print only once per pair to avoid spam
+                print(f"      [HMM ERROR] {symbol} logic fail: {e}")
             continue
 
         desired = 0
@@ -85,7 +104,7 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None
             hour = current_dt.hour
             is_major = symbol in MAJORS_FIX_LIST
             
-            conf_thresh = MAJORS_MIN_CONFIDENCE if is_major else 0.7
+            conf_thresh = MAJORS_MIN_CONFIDENCE if is_major else MINORS_MIN_CONFIDENCE
             if is_major and LUNCH_ZONE[0] <= hour < LUNCH_ZONE[1]:
                 conf_thresh = 0.90 # Extreme confidence required during London Lunch
             
@@ -95,12 +114,21 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None
                 # --- APPLY THE FUNDAMENTAL BOUNCER (Global Gatekeeper) ---
                 macro_bias = check_fundamental_gatekeeper(symbol, df.index[t], macro_data)
                 
+                # --- RELAXED MACRO OVERRIDE ---
+                # Allow high-confidence trades (>0.85) even against macro bias
+                is_veto = False
                 if "BEARISH" in macro_bias and direction_hmm == "LONG":
-                    desired = 0 
-                    print(f"      [VETO] {symbol} LONG rejected by Macro Bias: {macro_bias}")
+                    is_veto = True
                 elif "BULLISH" in macro_bias and direction_hmm == "SHORT":
-                    desired = 0 
-                    print(f"      [VETO] {symbol} SHORT rejected by Macro Bias: {macro_bias}")
+                    is_veto = True
+                
+                if is_veto:
+                    if adjusted_prob > 0.75:
+                        print(f"      [MACRO OVERRIDE] {symbol} {direction_hmm} allowed due to High Conf: {adjusted_prob:.2f}")
+                        desired = 1 if direction_hmm == 'LONG' else -1
+                    else:
+                        desired = 0 
+                        print(f"      [VETO] {symbol} {direction_hmm} rejected by Macro Bias: {macro_bias} (Conf: {adjusted_prob:.2f})")
                 else:
                     desired = 1 if direction_hmm == 'LONG' else -1
                     if desired != 0:
@@ -157,8 +185,8 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None
 
             # If we had a position, check for exit
             if position != 0:
-                # --- WAR-TIME OVERRIDE: Time Limits (OIL: 4h, GOLD: 8h) ---
-                time_limit = 8 if symbol == "GC=F" else 4
+                # --- WAR-TIME OVERRIDE: Time Limits (OIL: 12h, GOLD: 8h) ---
+                time_limit = 12 if symbol == "CL=F" else 8
                 if (symbol == "CL=F" or symbol == "GC=F") and (sub_t - entry_bar_idx) >= time_limit:
                     exit_reason = "TIME_EXIT"
                     exit_price = close

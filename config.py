@@ -11,7 +11,9 @@ CURRENCY_PAIRS = [
 # Timeframe for analysis
 # Timeframe for analysis
 INTERVAL = '1h'  # Hourly data
-PERIOD = '70d'   # 70 days lookback to ensure ~1000-1200 bars
+PERIOD = '70d'   # Lookback for live fitting (~1000-1200 bars)
+HMM_TRAIN_PERIOD = '365d' # Shortened to 1 year for better recent regime adaptation
+HMM_TRAIN_CORES = 4    # Parallel training workers
 
 # Clustering settings
 N_CLUSTERS = 4
@@ -19,10 +21,16 @@ N_CLUSTERS = 4
 # HMM settings
 HMM_COMPONENTS = 3  # Consolidation, Mean Reversion, Trend Breakout
 HMM_N_ITER = 1000   # Reset to 1000 now that covar floor is lowered
+HMM_FINE_TUNE_ITER_FX = 0 # Baseline stability for FX
+HMM_FINE_TUNE_ITER_COMM = 10 # Adaptability for Commodities
 HMM_COVARS_PRIOR = 1e-2
 HMM_MIN_COVAR = 1e-2
-ATR_MULTIPLIER_FX = 0.15 
-ATR_MULTIPLIER_GOLD = 0.2
+ATR_MULTIPLIER_FX = 0.25 # Lowered for discovery (was 0.50)
+ATR_MULTIPLIER_GOLD = 0.40 # Lowered for discovery (was 0.75)
+
+# HMM Persistence
+HMM_MODELS_PATH = 'hmm_models'
+HMM_USE_PRETRAINED = True # Set to False to rely on live fitting
 
 # GPR Integration Settings
 GPR_SPIKE_THRESHOLD = 2.0  # Std deviations for a spike
@@ -110,26 +118,27 @@ ASSET_MAPPINGS = {
 
 # Asset-Specific HMM Components
 ASSET_N_COMPONENTS = {
-    'DEFAULT': 3
+    'DEFAULT': 3,
+    'GC=F': 4, # Gold needs 4 states for Safe Haven Spikes
+    'CL=F': 3
 }
+
+# RELAXED THRESHOLDS for better trade volume
+MAJORS_MIN_CONFIDENCE = 0.55 
+MINORS_MIN_CONFIDENCE = 0.45 
 
 # 1.2 Candle Logic for Majors
 MAJORS_FIX_LIST = ['EURUSD=X', 'GBPUSD=X']
 EURUSD_FIX_LIST = ['EURUSD=X']
 CONFIRMATION_BUFFER = 0.2
 MAJORS_TP_MULTIPLIER = 3.0
-BB_SQUEEZE_THRESHOLD = 0.05 # EURUSD only breakouts if squeeze < 5% of price
-TIPS_TICKER = 'DFII10' # FRED Real Yield
+BB_SQUEEZE_THRESHOLD = 0.05 
+TIPS_TICKER = 'DFII10' 
 COMMODITY_MACRO_ENABLE = True
-
-# EFFICIENCY EQUILIBRIUM OVERRIDES
-MAJORS_MIN_CONFIDENCE = 0.85
-MAJORS_SL_ATR = 2.5
-SAR_PARAMS = {'start': 0.02, 'max': 0.2}
 
 # Kill Zone Windows (UTC)
 KILL_ZONES = [
     (7, 11),  # London Open
     (13, 17)  # NY Open / Overlap
 ]
-LUNCH_ZONE = (11, 13) # London Lunch (Lull Penalty)
+LUNCH_ZONE = (11, 13) 
