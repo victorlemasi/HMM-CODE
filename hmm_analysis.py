@@ -14,7 +14,8 @@ from config import (
     CONFIRMATION_BUFFER, MAJORS_TP_MULTIPLIER, ASSET_N_COMPONENTS, BB_SQUEEZE_THRESHOLD,
     HMM_N_ITER, HMM_COVARS_PRIOR, HMM_MIN_COVAR, FRED_2Y_TICKERS,
     HMM_MODELS_PATH, HMM_USE_PRETRAINED, HMM_FINE_TUNE_ITER_FX, HMM_FINE_TUNE_ITER_COMM,
-    ATR_SL_MULTIPLIER
+    ATR_SL_MULTIPLIER, MAJORS_MIN_CONFIDENCE, MINORS_MIN_CONFIDENCE,
+    HMM_STATE_DELTA_THRESHOLD, ATR_VOL_CEILING
 )
 from sklearn.metrics import pairwise_distances
 
@@ -314,21 +315,38 @@ def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: 
     avg_ret = state_metrics[current_state_id]['ret']
     direction = "LONG" if avg_ret > 0 else "SHORT"
     
-    # ENTROPY GATE: Dynamic threshold for hyper-volatile crosses
+    # --- v5.8.5 MATHEMATICAL HARDENING ---
     state_probs = hmm_model.predict_proba(features_scaled)
-    current_prob = float(state_probs[-1, current_state_id])
+    current_probs_vec = state_probs[-1]
+    sorted_probs = sorted(current_probs_vec, reverse=True)
+    state_delta = float(sorted_probs[0]) - float(sorted_probs[1])
     
-    entropy_threshold = 0.85 if ticker in ['EURNZD=X', 'GBPAUD=X'] else 0.70
+    current_prob = float(sorted_probs[0])
+    
+    # A. ENTROPY GATE: Veto if the model is "confused" (low state delta)
+    delta_thresh = HMM_STATE_DELTA_THRESHOLD
+    if state_delta < delta_thresh:
+        regime = "Consolidation"
+        direction = "None"
+        
+    # B. DYNAMIC CONFIDENCE GATE: New 0.70 Floor
+    entropy_threshold = 0.85 if ticker in ['EURNZD=X', 'GBPAUD=X'] else MAJORS_MIN_CONFIDENCE
     if current_prob < entropy_threshold:
         regime = "Consolidation"
         direction = "None"
-        # We'll log the veto later in the display logic if needed
         
-    # OCEANIC CHOP FILTER (AUD & NZD)
+    # C. ATR MOMENTUM SAFEGUARD (Volatility overkill)
+    atr_series = calculate_atr(df)
+    current_atr = float(atr_series.iloc[-1])
+    rolling_atr = float(atr_series.rolling(40).mean().iloc[-1])
+    vol_ceiling = ATR_VOL_CEILING
+    
+    if current_atr > vol_ceiling * rolling_atr:
+        regime = "Consolidation"
+        direction = "None"
+
+    # OCEANIC CHOP FILTER (AUD & NZD Extra Precaution)
     if ticker and isinstance(ticker, str) and ('AUD' in ticker or 'NZD' in ticker):
-        atr_series = calculate_atr(df)
-        current_atr = atr_series.iloc[-1]
-        rolling_atr = atr_series.rolling(40).mean().iloc[-1]
         if current_atr > 1.4 * rolling_atr:
             regime = "Consolidation"
             direction = "None"
