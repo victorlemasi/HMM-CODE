@@ -1,3 +1,4 @@
+import config
 import numpy as np
 import pandas as pd
 from hmmlearn.hmm import GaussianHMM
@@ -8,13 +9,6 @@ import logging
 import os
 import pickle
 logging.getLogger("hmmlearn").setLevel(logging.ERROR)
-from config import (
-    HMM_COMPONENTS, ASSET_MAPPINGS, COMMODITY_TICKERS, YIELD_TICKERS, FRED_TICKERS,
-    ATR_MULTIPLIER_FX, ATR_MULTIPLIER_GOLD, MAJORS_FIX_LIST,
-    CONFIRMATION_BUFFER, MAJORS_TP_MULTIPLIER, ASSET_N_COMPONENTS, BB_SQUEEZE_THRESHOLD,
-    HMM_N_ITER, HMM_COVARS_PRIOR, HMM_MIN_COVAR, FRED_2Y_TICKERS,
-    HMM_MODELS_PATH, HMM_USE_PRETRAINED, HMM_FINE_TUNE_ITER_FX, HMM_FINE_TUNE_ITER_COMM
-)
 from sklearn.metrics import pairwise_distances
 
 def calculate_rsi(series, period=14):
@@ -378,15 +372,15 @@ def get_dynamic_exit_levels(regime, price, atr, direction, ticker=None, is_scalp
         tp_dist = atr * 2.0
         sl_dist = atr * 2.0
     elif regime == "Mean Reversion":
-        tp_dist = atr * 4.0 # v5.8 Institutional Target
-        sl_dist = atr * 2.5 # v5.8 Breathing Room
+        tp_dist = atr * config.MAJORS_TP_MULTIPLIER
+        sl_dist = atr * config.ATR_SL_MULTIPLIER
     elif regime == "Trend Breakout":
         # PHASE 3 CHANDELIER EXITS: We eliminate the finite TP for Breakouts. 
         # Trades are closed exclusively by the trailing Stop Loss or regime shifts.
         tp_dist = atr * 999.0 
         
         # Initial SL needs room to breathe before the Chandelier pulls it up
-        sl_dist = atr * 2.5 # v5.8 Unified 2.5x SL
+        sl_dist = atr * config.ATR_SL_MULTIPLIER
     else:
         return None, None
 
