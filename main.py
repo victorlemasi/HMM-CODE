@@ -109,8 +109,12 @@ def main():
 
         data = fetch_data(CURRENCY_PAIRS, INTERVAL, PERIOD)
         
-        if not data:
-            logger.error("No data fetched. Retrying in 60s...")
+        # --- PHASE 8: MTF CONSENSUS (1-Day Pulse) ---
+        logger.info("Fetching Daily Data for MTF Consensus...")
+        data_daily = fetch_data(CURRENCY_PAIRS, "1d", "2y")
+        
+        if not data or not data_daily:
+            logger.error("Data fetch incomplete. Retrying in 60s...")
             time.sleep(60)
             continue
             
@@ -170,6 +174,17 @@ def main():
                 macro_weights[pair] = f"{macro_weight:.2f}x" # Save the Gravity Curve multiplier for the CSV
                 adjusted_prob = prob * macro_weight
                 
+                # --- PHASE 8: MTF CONSENSUS GATE ---
+                if pair in data_daily:
+                    d_regime, d_prob, d_direction, _, _, _, _ = detect_breakout(data_daily[pair], pair, macro_data)
+                    if direction in ["LONG", "SHORT"] and direction != d_direction:
+                        logger.info(f"  [MTF VETO] {pair} {direction} conflicts with 1-Day Trend ({d_direction})")
+                        regime = "Consolidation"
+                        direction = "None"
+                        pair_warnings.append(f"MTF Conflict (1D is {d_direction})")
+                    else:
+                        pair_warnings.append(f"MTF Aligned ({d_direction})")
+
                 # --- PHASE 4: REAL-TIME NLP SENTIMENT (SerpApi + FinBERT) ---
                 if direction in ["LONG", "SHORT"] and regime in ["Trend Breakout", "Mean Reversion"]:
                     from sentiment_fetcher import get_realtime_sentiment_modifier

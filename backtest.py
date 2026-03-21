@@ -55,7 +55,7 @@ if os.path.exists(XGB_MODEL_PATH):
         print(f"      [AI ERROR] Failed to load XGBoost: {e}")
 
 
-def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None) -> dict:
+def run_backtest_for_pair(symbol: str, df: pd.DataFrame, daily_regimes: dict = None, macro_data: dict = None) -> dict:
     """
     Runs a walk-forward backtest for a single currency pair.
     Returns a dict of performance metrics.
@@ -142,6 +142,16 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None
             if is_major and LUNCH_ZONE[0] <= hour < LUNCH_ZONE[1]:
                 conf_thresh = 0.90 # Extreme confidence required during London Lunch
             
+            # --- v5.8 MTF CONSENSUS CHECK ---
+            if daily_regimes:
+                current_date = df.index[t].date()
+                d_regime, d_prob, d_direction = daily_regimes.get(current_date, ("Consolidation", 0, "None"))
+                
+                # Consensus Rule: 1H Signal must match 1D Trend Direction
+                if direction_hmm != d_direction:
+                    desired = 0
+                    # print(f"      [MTF VETO] {symbol} {direction_hmm} conflicts with 1D {d_direction}")
+
             if adjusted_prob < conf_thresh:
                 desired = 0
         
@@ -323,13 +333,28 @@ def main():
     backtest_summaries = []
     all_trade_logs = []
 
+    # v5.8: Fetch Daily Data for Consensus
+    print("Fetching Daily data for MTF Consensus...")
+    all_daily_data = fetch_data(CURRENCY_PAIRS, period="2y", interval="1d")
+
     for active_symbol in CURRENCY_PAIRS:
         if active_symbol not in all_market_data:
             print(f"  {active_symbol}: SKIPPED (fetch failed)")
             continue
 
+        # Pre-calculate Daily Regimes for this pair (v5.8)
+        daily_regime_map = {}
+        if active_symbol in all_daily_data:
+            df_d = all_daily_data[active_symbol]
+            print(f"  [MTF SETUP] Pre-calculating 1D Regimes for {active_symbol}...", end="\r")
+            # Run a daily walk-forward (simple step=1)
+            for dt_idx in range(100, len(df_d)):
+                d_slice = df_d.iloc[max(0, dt_idx-200):dt_idx]
+                d_regime, d_prob, d_dir, _, _, _, _ = detect_breakout(d_slice, ticker=active_symbol)
+                daily_regime_map[df_d.index[dt_idx].date()] = (d_regime, d_prob, d_dir)
+
         print(f"  Backtesting {active_symbol}...", end=" ", flush=True)
-        result = run_backtest_for_pair(active_symbol, all_market_data[active_symbol], macro_data=macro_context)
+        result = run_backtest_for_pair(active_symbol, all_market_data[active_symbol], daily_regimes=daily_regime_map, macro_data=macro_context)
         if result is None:
             print("SKIPPED (insufficient data)")
             continue

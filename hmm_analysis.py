@@ -378,16 +378,15 @@ def get_dynamic_exit_levels(regime, price, atr, direction, ticker=None, is_scalp
         tp_dist = atr * 2.0
         sl_dist = atr * 2.0
     elif regime == "Mean Reversion":
-        tp_dist = atr * 1.0
-        sl_dist = atr * 2.0  # Increased from 1.5x for robustness
+        tp_dist = atr * 4.0 # v5.8 Institutional Target
+        sl_dist = atr * 2.5 # v5.8 Breathing Room
     elif regime == "Trend Breakout":
         # PHASE 3 CHANDELIER EXITS: We eliminate the finite TP for Breakouts. 
         # Trades are closed exclusively by the trailing Stop Loss or regime shifts.
         tp_dist = atr * 999.0 
         
         # Initial SL needs room to breathe before the Chandelier pulls it up
-        is_commodity = ticker in ['GC=F', 'CL=F'] or ('=F' in str(ticker))
-        sl_dist = atr * (1.5 if is_commodity else 1.2)
+        sl_dist = atr * 2.5 # v5.8 Unified 2.5x SL
     else:
         return None, None
 
