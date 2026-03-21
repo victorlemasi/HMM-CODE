@@ -98,7 +98,7 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, daily_regimes: dict = N
         try:
             # Pass pretrained_model for fine-tuning
             regime, prob, direction, is_breakout, state_id, current_atr, kelly = detect_breakout(
-                train_slice, ticker=symbol, macro_data=macro_data, model=pretrained_model
+                train_slice, ticker=symbol, macro_data=macro_data, model=pretrained_model, is_backtest=True
             )
         except Exception as e:
             if t == TRAIN_WINDOW: # Print only once per pair to avoid spam
@@ -350,7 +350,7 @@ def main():
             # Run a daily walk-forward (simple step=1)
             for dt_idx in range(100, len(df_d)):
                 d_slice = df_d.iloc[max(0, dt_idx-200):dt_idx]
-                d_regime, d_prob, d_dir, _, _, _, _ = detect_breakout(d_slice, ticker=active_symbol)
+                d_regime, d_prob, d_dir, _, _, _, _ = detect_breakout(d_slice, ticker=active_symbol, is_backtest=True)
                 daily_regime_map[df_d.index[dt_idx].date()] = (d_regime, d_prob, d_dir)
 
         print(f"  Backtesting {active_symbol}...", end=" ", flush=True)

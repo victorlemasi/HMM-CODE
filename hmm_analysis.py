@@ -192,7 +192,7 @@ def prepare_hmm_features(df: pd.DataFrame, ticker: str, macro_data: dict) -> np.
         
     return df[features_cols].values # Fixed order
 
-def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: Optional[Dict[str, Any]] = None, model=None):
+def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: Optional[Dict[str, Any]] = None, model=None, is_backtest: bool = False):
     """
     Fits an HMM to detect price regimes and returns standardized results.
     Signature: regime, prob, direction, is_breakout, state_id, atr
@@ -341,7 +341,7 @@ def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: 
             direction = "None"
 
     # HIGH-FREQUENCY MICRO-CVD DIVERGENCE GATE
-    if regime in ["Trend Breakout", "Mean Reversion"]:
+    if not is_backtest and regime in ["Trend Breakout", "Mean Reversion"]:
         from micro_cvd_engine import get_micro_cvd_slope
         cvd_slope = get_micro_cvd_slope(ticker)
         
