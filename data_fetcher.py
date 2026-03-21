@@ -48,6 +48,16 @@ def fetch_data(tickers: List[str], interval: str, period: str) -> Dict[str, pd.D
             if isinstance(df.columns, pd.MultiIndex):
                 df.columns = df.columns.get_level_values(0)
             
+            # Deduplicate columns (keep first occurrence)
+            df = df.loc[:, ~df.columns.duplicated()]
+            
+            # Defensive Fix: Force core columns to Series
+            for col in ['Close', 'High', 'Low', 'Open', 'Adj Close', 'Volume']:
+                if col in df.columns:
+                    target = df[col]
+                    if isinstance(target, pd.DataFrame):
+                        df[col] = target.iloc[:, 0]
+            
             if 'Close' in df.columns:
                 df['Returns'] = df['Close'].pct_change()
                 data[pair] = df
