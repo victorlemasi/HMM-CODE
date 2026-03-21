@@ -42,7 +42,7 @@ BACKTEST_PERIOD = "6mo"          # Historical data to fetch
 BACKTEST_INTERVAL = "1h"         # Bar interval
 TRAIN_WINDOW = 1200               # Bars used to train HMM before each signal (Goldilocks zone)
 STEP_SIZE = 24                   # Re-fit HMM every N bars (24 = daily)
-TRANSACTION_COST = 0.0002        # 2 pips per round trip (cost per trade)
+TRANSACTION_COST = 0.00005        # 0.5 pips per round trip (Institutional Default)
 
 # Load XGBoost Veto Model (Phase 4 Setup)
 XGB_MODEL_PATH = "xgb_breakout_filter.pkl"
