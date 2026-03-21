@@ -341,7 +341,7 @@ def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: 
             direction = "None"
 
     # HIGH-FREQUENCY MICRO-CVD DIVERGENCE GATE
-    if regime == "Trend Breakout":
+    if regime in ["Trend Breakout", "Mean Reversion"]:
         from micro_cvd_engine import get_micro_cvd_slope
         cvd_slope = get_micro_cvd_slope(ticker)
         

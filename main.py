@@ -171,7 +171,7 @@ def main():
                 adjusted_prob = prob * macro_weight
                 
                 # --- PHASE 4: REAL-TIME NLP SENTIMENT (SerpApi + FinBERT) ---
-                if direction in ["LONG", "SHORT"] and regime == "Trend Breakout":
+                if direction in ["LONG", "SHORT"] and regime in ["Trend Breakout", "Mean Reversion"]:
                     from sentiment_fetcher import get_realtime_sentiment_modifier
                     nlp_mult = get_realtime_sentiment_modifier(pair)
                     if nlp_mult != 1.0:
@@ -181,7 +181,7 @@ def main():
                         
                 # --- PHASE 5: HYBRID AI ENSEMBLING (XGBoost) ---
                 # Pass the core HMM outputs through the massive XGBoost decision tree
-                if regime == "Trend Breakout" and direction in ["LONG", "SHORT"]:
+                if regime in ["Trend Breakout", "Mean Reversion"] and direction in ["LONG", "SHORT"]:
                     import os, joblib
                     xgb_path = "xgb_breakout_filter.pkl"
                     if os.path.exists(xgb_path):

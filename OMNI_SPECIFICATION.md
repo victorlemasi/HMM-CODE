@@ -40,9 +40,10 @@ We moved away from a single "flat" HMM to a tiered intelligence system to ensure
 - **GMM Initialization**: Your system uses Gaussian Mixture Models to initialize states. This allows the HMM to model "fat-tailed" distributions (leptokurtosis), which are common in volatile pairs like $GBPCHF$ and $XAU$ (Gold).
 - **MAD Scaling**: Robust Z-scores use the **Median Absolute Deviation (MAD)** with a scale factor of $0.6745$ to ignore extreme outliers that would skew standard standard deviations.
 
----
+### Universal Regime Protection (v5.6 Update)
+**All 10 Shields listed below now provide universal protection.** This means that whether the system identifies a **Trend Breakout** (Momentum) or a **Mean Reversion** (Volatility Exhaustion), the signal must pass the NLP, XGBoost, and CVD filters before execution.
 
-## 🛡️ MODULE III: THE VETO VAULT (THE 10 PROTECTIVE SHIELDS)
+---
 
 ### 1. The Dynamic Entropy Gate (Confidence Veto)
 - **Logic**: Measures the HMM's state probabilities.
