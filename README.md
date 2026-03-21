@@ -31,14 +31,18 @@ Technical signals are subjected to a rigorous fundamental validation suite:
 
 ## 🛠️ Installation & Setup
 
-1. **Environment**: Recommended Python 3.12 (for `hmmlearn` stability).
-2. **Setup**:
+1. **Navigation**:
+   ```powershell
+   CD Currency-Pair-Scanner-Analysis
+   ```
+2. **Environment**: Recommended Python 3.12 (for `hmmlearn` stability).
+3. **Setup**:
    ```powershell
    py -3.12 -m venv .venv
    .\.venv\Scripts\Activate.ps1
    pip install -r requirements.txt
    ```
-3. **Data Requirements**: Requires internet access to `yfinance` and `FRED` (St. Louis Fed) CSV exports.
+4. **Data Requirements**: Requires internet access to `yfinance` and `FRED` (St. Louis Fed) CSV exports.
 
 ## 📈 Usage
 
