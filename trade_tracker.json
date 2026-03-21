@@ -3,24 +3,36 @@
         "dir": "SHORT",
         "entry_time": "2026-03-20T22:05:13.372058",
         "regime": "Trend Breakout",
+        "bars_active": 1
+    },
+    "AUDUSD=X": {
+        "dir": "LONG",
+        "entry_time": "2026-03-21T10:29:15.364024",
+        "regime": "Trend Breakout",
         "bars_active": 0
     },
-    "EURNZD=X": {
-        "dir": "LONG",
-        "entry_time": "2026-03-19T21:13:38.719051",
-        "regime": "Mean Reversion",
-        "bars_active": 2
+    "EURGBP=X": {
+        "dir": "SHORT",
+        "entry_time": "2026-03-21T10:29:15.651915",
+        "regime": "Trend Breakout",
+        "bars_active": 0
+    },
+    "EURAUD=X": {
+        "dir": "SHORT",
+        "entry_time": "2026-03-21T10:29:16.455979",
+        "regime": "Trend Breakout",
+        "bars_active": 0
     },
     "AUDNZD=X": {
         "dir": "LONG",
         "entry_time": "2026-03-20T22:05:14.886732",
         "regime": "Mean Reversion",
-        "bars_active": 0
+        "bars_active": 1
     },
-    "GC=F": {
-        "dir": "SHORT",
-        "entry_time": "2026-03-20T22:05:14.977490",
-        "regime": "Trend Breakout",
+    "CL=F": {
+        "dir": "LONG",
+        "entry_time": "2026-03-21T10:29:17.075208",
+        "regime": "Mean Reversion",
         "bars_active": 0
     }
 }

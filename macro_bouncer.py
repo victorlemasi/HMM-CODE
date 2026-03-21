@@ -10,12 +10,14 @@ def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
     if macro_data is None:
         return "ALLOW"
 
+    # --- THRESHOLDS (War-Time March 2026 calibrated) ---
+    DXY_WALL = 100.40
+    OIL_DANGER_ZONE = 98.00 
+    MOM_THRESHOLD = 0.0025
+    
+    biases = [] # Fix: Initialize early to avoid NameError
+    
     try:
-        # Thresholds (War-Time March 2026 calibrated)
-        DXY_WALL = 100.40
-        OIL_DANGER_ZONE = 98.00 
-        MOM_THRESHOLD = 0.0025
-        
         # --- THE MACRO REALITY: 2s10s Steepening Trap ---
         # If the 2Y is dropping much faster than the 10Y while still inverted, 
         # it's a classic "Bull-Steepener" signaling a hard landing.
@@ -55,10 +57,6 @@ def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
             elif ticker in ["USDJPY=X", "USDCHF=X", "USDCAD=X"]:
                 biases.append("BEARISH_ONLY")
                 
-        DXY_WALL = 100.40
-        OIL_DANGER_ZONE = 98.00 
-        MOM_THRESHOLD = 0.0025
-        
         # Ensure current_time is a UTC-aware Timestamp
         current_time = pd.to_datetime(current_time)
         if current_time.tzinfo is None:
@@ -78,8 +76,6 @@ def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
                 current_dxy = dxy_slice['Close'].iloc[-1]
                 dxy_change = (current_dxy - dxy_slice['Close'].iloc[-25]) / dxy_slice['Close'].iloc[-25]
 
-        biases = []
-        
         # --- NEW GENERIC MACRO: Yield Spread Momentum (Applicable to ALL Pairs) ---
         from config import ASSET_MAPPINGS, YIELD_TICKERS, FRED_TICKERS
         if ticker in ASSET_MAPPINGS and ASSET_MAPPINGS[ticker]['type'] == 'macro':
@@ -99,20 +95,20 @@ def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
                 if q_df.index.tzinfo is None: q_df.index = q_df.index.tz_localize('UTC')
                 else: q_df.index = q_df.index.tz_convert('UTC')
 
-                # Align indices to handle mixed frequencies (e.g. Daily vs Monthly)
-                combined = pd.DataFrame({
-                    'base': b_df['Close'],
-                    'quote': q_df['Close']
-                }).sort_index().ffill().dropna()
+                # --- SAFE DATA ALIGNMENT PATTERN (2026 Safeguard) ---
+                # We use union of indices and forward-fill to prevent aggressive dropna()
+                # from losing the latest valid observations in fragmented release schedules.
+                all_idx = b_df.index.union(q_df.index).sort_values()
+                all_idx = all_idx[all_idx <= current_time]
                 
-                # Filter up to current_time
-                combined = combined[combined.index <= current_time]
-                
-                if len(combined) >= 50:
-                    # Lookback for momentum: 240 bars (~10 trading days for hourly data)
-                    lb = min(len(combined) - 1, 240)
+                if len(all_idx) >= 50:
+                    combined_b = b_df['Close'].reindex(all_idx, method='ffill').ffill().bfill()
+                    combined_q = q_df['Close'].reindex(all_idx, method='ffill').ffill().bfill()
                     
-                    spread = combined['base'] - combined['quote']
+                    spread = combined_b - combined_q
+                    
+                    # Lookback for momentum: 240 bars (~10 trading days for hourly data)
+                    lb = min(len(spread) - 1, 240)
                     momentum = spread.iloc[-1] - spread.iloc[-lb]
                     
                     from config import YIELD_THRESHOLD
@@ -228,3 +224,65 @@ def get_macro_weight(ticker: str, direction: str, macro_data: dict) -> float:
             return 1.0 + (score if direction == "LONG" else -score)
 
     return 1.0
+
+def get_yield_spread_momentum(ticker, macro_data, current_time=None):
+    """
+    Calculates the trend of the yield spread with 2026 Safe Alignment.
+    Positive means Base Yield is rising faster than Quote Yield.
+    """
+    from config import ASSET_MAPPINGS, YIELD_TICKERS, FRED_TICKERS, YIELD_THRESHOLD
+    
+    if ticker not in ASSET_MAPPINGS or ASSET_MAPPINGS[ticker]['type'] != 'macro':
+        return 0
+        
+    mapping = ASSET_MAPPINGS[ticker]
+    base_ticker = YIELD_TICKERS.get(mapping['base']) or FRED_TICKERS.get(mapping['base'])
+    quote_ticker = YIELD_TICKERS.get(mapping['quote']) or FRED_TICKERS.get(mapping['quote'])
+    
+    if base_ticker not in macro_data or quote_ticker not in macro_data or macro_data[base_ticker].empty or macro_data[quote_ticker].empty:
+        # Fallback to DXY momentum for USD pairs if specific yields are missing
+        if "USD" in ticker:
+            dxy_ticker = 'DX-Y.NYB'
+            if dxy_ticker in macro_data and not macro_data[dxy_ticker].empty:
+                dxy_df = macro_data[dxy_ticker]
+                if len(dxy_df) >= 6:
+                    momentum = dxy_df['Close'].iloc[-1] - dxy_df['Close'].iloc[-5]
+                    return momentum if ticker.startswith("USD") else -momentum
+        return 0
+        
+    base_df = macro_data[base_ticker]
+    quote_df = macro_data[quote_ticker]
+    
+    # Standardize time
+    if current_time is None:
+        current_time = base_df.index[-1]
+    
+    # Convert current_time to UTC-aware Timestamp if it's not already
+    current_time = pd.to_datetime(current_time)
+    if current_time.tzinfo is None:
+        current_time = current_time.tz_localize('UTC')
+    else:
+        current_time = current_time.tz_convert('UTC')
+    
+    # Sync types
+    b_df = base_df.copy()
+    q_df = quote_df.copy()
+    if b_df.index.tzinfo is None: b_df.index = b_df.index.tz_localize('UTC')
+    else: b_df.index = b_df.index.tz_convert('UTC')
+    if q_df.index.tzinfo is None: q_df.index = q_df.index.tz_localize('UTC')
+    else: q_df.index = q_df.index.tz_convert('UTC')
+
+    # Safe Alignment Pattern
+    all_idx = b_df.index.union(q_df.index).sort_values()
+    all_idx = all_idx[all_idx <= current_time]
+    
+    if len(all_idx) < 20:
+        return 0
+        
+    combined_b = b_df['Close'].reindex(all_idx, method='ffill').ffill().bfill()
+    combined_q = q_df['Close'].reindex(all_idx, method='ffill').ffill().bfill()
+    
+    spread = combined_b - combined_q
+    lb = min(len(spread) - 1, 240)
+    momentum = spread.iloc[-1] - spread.iloc[-lb]
+    return momentum

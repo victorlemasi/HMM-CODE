@@ -144,75 +144,92 @@ def prepare_features(df: pd.DataFrame, ticker: str, macro_data: dict) -> np.ndar
     return df[features_cols].values  # shape: (N, N_FEATURES=6)
 
 
+from joblib import Parallel, delayed
+
+def train_single_ticker(ticker, price_data, macro_data):
+    """
+    Trains a single HMM model for a given ticker.
+    Returns (success, ticker, n_features, n_components, model_file) or (False, ticker, error_msg).
+    """
+    if ticker not in price_data or price_data[ticker] is None or price_data[ticker].empty:
+        return False, ticker, "No data"
+
+    features = prepare_features(price_data[ticker], ticker, macro_data)
+
+    if features is None or len(features) < 200:
+        return False, ticker, f"Insufficient features ({len(features) if features is not None else 0} rows)"
+
+    if features.shape[1] != N_FEATURES:
+        return False, ticker, f"Feature count mismatch: got {features.shape[1]}, expected {N_FEATURES}"
+
+    try:
+        scaler = StandardScaler()
+        features_scaled = scaler.fit_transform(features)
+
+        n_components = ASSET_N_COMPONENTS.get(ticker, ASSET_N_COMPONENTS.get('DEFAULT', 3))
+
+        model = GaussianHMM(
+            n_components=n_components,
+            covariance_type="diag",
+            n_iter=HMM_N_ITER,
+            tol=1e-3,
+            random_state=42,
+            covars_prior=HMM_COVARS_PRIOR,
+            min_covar=HMM_MIN_COVAR,
+            init_params="stmc",
+            params="stmc",
+        )
+        model.fit(features_scaled)
+
+        # Validate — reject degenerate models
+        if np.isnan(model.transmat_).any() or np.isnan(model.means_).any():
+            return False, ticker, "NaN in model params after fit"
+
+        model_file = os.path.join(
+            HMM_MODELS_PATH,
+            f"{ticker.replace('=X', '').replace('=F', '')}_hmm.pkl"
+        )
+
+        with open(model_file, 'wb') as fh:
+            pickle.dump({'model': model, 'scaler': scaler, 'n_features': N_FEATURES}, fh)
+
+        return True, ticker, N_FEATURES, n_components, model_file, len(features)
+
+    except Exception as e:
+        return False, ticker, str(e)
+
 def train_all_models():
     """
     Main training loop: fetch 2-year history, engineer features, run Baum-Welch,
     and save model + scaler for each asset.
     """
     os.makedirs(HMM_MODELS_PATH, exist_ok=True)
+    from config import HMM_TRAIN_CORES
+    
     logger.info(f"Fetching {HMM_TRAIN_PERIOD} of historical data for {len(CURRENCY_PAIRS)} pairs...")
 
     price_data = fetch_data(CURRENCY_PAIRS, interval=INTERVAL, period=HMM_TRAIN_PERIOD)
     macro_data = get_macro_data(interval=INTERVAL, period=HMM_TRAIN_PERIOD)
 
+    logger.info(f"Starting parallel training with {HMM_TRAIN_CORES} cores...")
+    
+    results = Parallel(n_jobs=HMM_TRAIN_CORES)(
+        delayed(train_single_ticker)(ticker, price_data, macro_data) 
+        for ticker in CURRENCY_PAIRS
+    )
+
     trained, skipped = 0, 0
-
-    for ticker in CURRENCY_PAIRS:
-        if ticker not in price_data or price_data[ticker] is None or price_data[ticker].empty:
-            logger.warning(f"  No data for {ticker} — skipping")
-            skipped += 1
-            continue
-
-        logger.info(f"  Training {ticker}...")
-        features = prepare_features(price_data[ticker], ticker, macro_data)
-
-        if features is None or len(features) < 200:
-            logger.warning(f"  Insufficient features for {ticker} ({len(features) if features is not None else 0} rows) — skipping")
-            skipped += 1
-            continue
-
-        assert features.shape[1] == N_FEATURES, (
-            f"Feature count mismatch for {ticker}: got {features.shape[1]}, expected {N_FEATURES}"
-        )
-
-        scaler = StandardScaler()
-        features_scaled = scaler.fit_transform(features)
-
-        n_components = ASSET_N_COMPONENTS.get(ticker, ASSET_N_COMPONENTS.get('DEFAULT', 3))
-
-        try:
-            model = GaussianHMM(
-                n_components=n_components,
-                covariance_type="diag",
-                n_iter=HMM_N_ITER,
-                tol=1e-3,
-                random_state=42,
-                covars_prior=HMM_COVARS_PRIOR,
-                min_covar=HMM_MIN_COVAR,
-                init_params="stmc",
-                params="stmc",
-            )
-            model.fit(features_scaled)
-
-            # Validate — reject degenerate models
-            if np.isnan(model.transmat_).any() or np.isnan(model.means_).any():
-                logger.error(f"  {ticker}: NaN in model params after fit — skipping")
-                skipped += 1
-                continue
-
-            model_file = os.path.join(
-                HMM_MODELS_PATH,
-                f"{ticker.replace('=X', '').replace('=F', '')}_hmm.pkl"
-            )
-
-            with open(model_file, 'wb') as fh:
-                pickle.dump({'model': model, 'scaler': scaler, 'n_features': N_FEATURES}, fh)
-
-            logger.info(f"  ✓ {ticker}: {len(features)} bars, {n_components} states → {model_file}")
+    for res in results:
+        success = res[0]
+        ticker = res[1]
+        
+        if success:
+            _, _, _, n_comp, model_file, n_bars = res
+            logger.info(f"  ✓ {ticker}: {n_bars} bars, {n_comp} states → {model_file}")
             trained += 1
-
-        except Exception as e:
-            logger.error(f"  {ticker}: Training failed — {e}")
+        else:
+            reason = res[2]
+            logger.warning(f"  ✗ {ticker}: {reason}")
             skipped += 1
 
     logger.info(f"\nDone. Trained: {trained} | Skipped: {skipped}")
