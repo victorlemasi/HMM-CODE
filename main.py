@@ -28,8 +28,8 @@ from config import (
     WATCHDOG_TICKERS
 )
 from gpr_fetcher import fetch_latest_gpr
-from sentiment_fetcher import fetch_market_sentiment
-from rebalancer import diversify_signals, find_correlation_hedges, get_exit_recommendations
+# Macro & Sentiment fetchers are imported dynamically to save memory
+from rebalancer import find_correlation_hedges, get_exit_recommendations
 from macro_bouncer import (
     check_fundamental_gatekeeper, get_macro_weight
 )
@@ -93,10 +93,6 @@ def main():
         logger.info(f"--- Market Sentiment & Risk Assessment [Loop {loop_count}] ---")
         gpr_val, is_gpr_spike, gpr_msg = fetch_latest_gpr(threshold_std=GPR_SPIKE_THRESHOLD)
         logger.info(gpr_msg)
-        
-        sent_val, sent_class, sent_recom = fetch_market_sentiment()
-        logger.info(f"Market Sentiment: {sent_val} ({sent_class}) -> RECOMMENDATION: {sent_recom}")
-        
         # 1. Fetch data
         logger.info("Currency Pair Analysis Pipeline")
         
@@ -302,9 +298,6 @@ def main():
             logger.warning("ACTION: Switching to SAFE HAVEN mode.")
             logger.warning(f"FOCUS: Prioritize {SAFE_HAVEN_TICKER} (Gold) signals.")
         
-        if "Caution" in sent_recom:
-            logger.info(f"ALERT: Sentiment {sent_class} suggests cautious positioning.")
-
         # Diversification & Portfolio Optimization
         active_positions = list(new_tracker.keys())
         from rebalancer import optimize_portfolio_weights, get_exit_recommendations, find_correlation_hedges
