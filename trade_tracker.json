@@ -1,12 +1,1 @@
-{
-    "EURNZD=X": {
-        "entry_price": 1.9821100234985352,
-        "entry_time": "2026-03-21T22:34:33.475792",
-        "tp": 1.9940929072243827,
-        "sl": 1.9746207211698805,
-        "direction": "LONG",
-        "bars_active": 0,
-        "regime": "Mean Reversion",
-        "kelly_size": 2.0
-    }
-}
+{}
