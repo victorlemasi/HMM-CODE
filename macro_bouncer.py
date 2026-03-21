@@ -52,10 +52,10 @@ def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
             # Toxic to be Long USD here.
             # If USD is Quote (EURUSD, GBPUSD), we only allow BULLISH trades (Long EUR, Short USD)
             if ticker in ["EURUSD=X", "GBPUSD=X", "AUDUSD=X", "NZDUSD=X", "GC=F"]:
-                biases.append("BULLISH_ONLY")
+                biases.append("Bullish Bias")
             # If USD is Base (USDJPY, USDCHF, USDCAD), we only allow BEARISH trades (Short USD, Long JPY)
             elif ticker in ["USDJPY=X", "USDCHF=X", "USDCAD=X"]:
-                biases.append("BEARISH_ONLY")
+                biases.append("Bearish Bias")
                 
         # Ensure current_time is a UTC-aware Timestamp
         current_time = pd.to_datetime(current_time)
@@ -114,9 +114,9 @@ def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
                     from config import YIELD_THRESHOLD
                     # Use synced config threshold
                     if momentum < -YIELD_THRESHOLD: 
-                        biases.append("BEARISH_ONLY")
+                        biases.append("Bearish Bias")
                     elif momentum > YIELD_THRESHOLD:
-                        biases.append("BULLISH_ONLY")
+                        biases.append("Bullish Bias")
                     else:
                         biases.append("NEUTRAL")
 
@@ -152,9 +152,9 @@ def check_fundamental_gatekeeper(ticker: str, current_time, macro_data: dict):
             if base_rate is not None and quote_rate is not None:
                 diff = base_rate - quote_rate
                 if diff > 1.5:
-                    biases.append("BULLISH_ONLY")
+                    biases.append("Bullish Bias")
                 elif diff < -1.5:
-                    biases.append("BEARISH_ONLY")
+                    biases.append("Bearish Bias")
                 else:
                     biases.append("NEUTRAL")
 

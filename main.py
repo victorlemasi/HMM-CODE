@@ -134,6 +134,7 @@ def main():
         breakout_directions = {}
         warnings_dict = {}
         macro_statuses = {}
+        macro_weights = {}
         
         for pair, df in data.items():
             try:
@@ -166,10 +167,11 @@ def main():
                 # Calculate 1.2 Candle Trigger for All Macro Pairs
                 trigger = None
                 if pair in ASSET_MAPPINGS and ASSET_MAPPINGS[pair]['type'] == 'macro':
-                    macro_phase = "WIN_PHASE" if ("BULLISH" in gatekeeper_status or "BEARISH" in gatekeeper_status) else "TRAP_PHASE"
+                    macro_phase = "WIN_PHASE" if ("Bullish Bias" in gatekeeper_status or "Bearish Bias" in gatekeeper_status) else "TRAP_PHASE"
                     trigger = get_trigger_price(df, regime, direction, current_atr, macro_phase=macro_phase)
                 
                 macro_weight = get_macro_weight(pair, direction, macro_data)
+                macro_weights[pair] = f"{macro_weight:.2f}x" # Save the Gravity Curve multiplier for the CSV
                 adjusted_prob = prob * macro_weight
                 
                 # --- LUNCH ZONE FILTER (London Lunch / NY Pre-Open) ---
@@ -258,6 +260,7 @@ def main():
         summary['Direction'] = pd.Series(breakout_directions)
         summary['Cluster'] = pd.Series(cluster_mapping)
         summary['State'] = pd.Series(macro_statuses)
+        summary['Macro_Weight'] = pd.Series(macro_weights)
         summary['Warnings'] = pd.Series(warnings_dict)
         
         logger.info("Risk Overlay")
