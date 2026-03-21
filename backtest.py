@@ -31,8 +31,7 @@ from data_fetcher import fetch_data, get_macro_data
 from hmm_analysis import detect_breakout, get_dynamic_exit_levels, calculate_atr, get_trigger_price, calculate_z_score, calculate_mahalanobis_distance
 from macro_bouncer import (
     check_fundamental_gatekeeper, get_macro_weight,
-    check_geopolitical_risk, get_yield_spread_momentum,
-    check_macro_alignment
+    get_yield_spread_momentum, check_macro_alignment
 )
 from config import CURRENCY_PAIRS, MAJORS_FIX_LIST, WATCHDOG_TICKERS, WATCHDOG_JUMP_THRESHOLDS, LUNCH_ZONE, MAJORS_MIN_CONFIDENCE, MINORS_MIN_CONFIDENCE
 
@@ -155,7 +154,7 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None
         macro_bias_val = check_fundamental_gatekeeper(symbol, df.index[t], macro_data) if desired != 0 else ""
         
         # Determine macro phase for trigger logic
-        from main import check_macro_alignment
+        from macro_bouncer import check_macro_alignment
         macro_phase = check_macro_alignment(symbol, direction_hmm, macro_data) if desired != 0 else "TRAP_PHASE"
         
         is_scalp_active = (symbol == "CL=F" and "SCALP_ONLY" in macro_bias_val)
