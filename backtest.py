@@ -22,6 +22,8 @@ import warnings
 import numpy as np
 import pandas as pd
 from datetime import datetime
+import joblib
+import os
 
 # Suppress hmmlearn convergence noise
 warnings.filterwarnings("ignore")
@@ -41,7 +43,16 @@ BACKTEST_INTERVAL = "1h"         # Bar interval
 TRAIN_WINDOW = 1200               # Bars used to train HMM before each signal (Goldilocks zone)
 STEP_SIZE = 24                   # Re-fit HMM every N bars (24 = daily)
 TRANSACTION_COST = 0.0002        # 2 pips per round trip (cost per trade)
-# ──────────────────────────────────────────────────────────────────────────────
+
+# Load XGBoost Veto Model (Phase 4 Setup)
+XGB_MODEL_PATH = "xgb_breakout_filter.pkl"
+xgb_model = None
+if os.path.exists(XGB_MODEL_PATH):
+    try:
+        xgb_model = joblib.load(XGB_MODEL_PATH)
+        print(f"      [AI SETUP] XGBoost Veto Model Loaded Successfully.")
+    except Exception as e:
+        print(f"      [AI ERROR] Failed to load XGBoost: {e}")
 
 
 def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None) -> dict:
@@ -102,6 +113,21 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None
             macro_weight = get_macro_weight(symbol, direction_hmm, macro_data)
             adjusted_prob = prob * macro_weight
             
+            # --- XGBOOST VETO (Institutional AI Filter) ---
+            if xgb_model is not None and regime in ('Trend Breakout', 'Mean Reversion'):
+                # Features: state_id, hmm_confidence, atr_normalized
+                # IMPORTANT: Columns must match the training matrix: [state_id, hmm_confidence, atr_normalized]
+                xgb_features = pd.DataFrame([{
+                    'state_id': state_id,
+                    'hmm_confidence': prob,
+                    'atr_normalized': current_atr / df['Close'].iloc[t]
+                }])
+                
+                # Predict (1 = Allow, 0 = Veto)
+                xgb_prediction = xgb_model.predict(xgb_features)[0]
+                if xgb_prediction == 0:
+                    print(f"      [XGB VETO] {symbol} {regime} Rejected by AI Layer.")
+                    desired = 0
             # --- LULL PENALTY (Efficiency Equilibrium) ---
             current_dt = df.index[t]
             hour = current_dt.hour
