@@ -177,6 +177,7 @@ def main():
                     if nlp_mult != 1.0:
                         logger.info(f"  {pair} | NLP Sentiment Mod: {nlp_mult:.2f}x")
                         adjusted_prob *= nlp_mult
+                        pair_warnings.append(f"NLP Sentiment: {nlp_mult:.2f}x")
                         
                 # --- PHASE 5: HYBRID AI ENSEMBLING (XGBoost) ---
                 # Pass the core HMM outputs through the massive XGBoost decision tree
@@ -199,7 +200,9 @@ def main():
                                 logger.info(f"  [XGBOOST VETO] {pair} Signal Blocked. AI Ensemble classifies this as a liquidity trap.")
                                 regime = "Consolidation"
                                 direction = "None"
-                                pair_warnings.append("XGBoost Veto")
+                                pair_warnings.append("XGBoost AI Veto")
+                            else:
+                                pair_warnings.append("XGBoost AI Confirmed")
                         except Exception as e:
                             logger.error(f"  [XGBOOST ERROR] Failed to run ensemble filter: {e}")
                 
