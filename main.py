@@ -369,8 +369,8 @@ def main():
         summary.to_csv('analysis_summary.csv')
         logger.info("Complete scan saved to 'analysis_summary.csv'.")
         
-        logger.info(f"Loop {loop_count} complete. Waiting 60 seconds...")
-        time.sleep(60)
+        logger.info(f"Loop {loop_count} complete. Waiting 5 minutes...")
+        time.sleep(300)
 
 if __name__ == "__main__":
     main()
