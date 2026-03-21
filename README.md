@@ -2,6 +2,11 @@
 
 This repository contains an ultra-advanced, multi-layer AI trading node. The system is architected to operate with a **"Triple-Lock" Audit Policy**, ensuring every signal is vetted by seven redundant mathematical layers before being logged for execution.
 
+## 📖 Master Documentation: 20-Page Technical Specification
+For an exhaustive, chapter-by-chapter deconstruction of every mathematical gate, veto, and architectural decision in this node, please refer to the **[Full Technical Specification](file:///C:/Users/lenovo/Downloads/scanner/Currency-Pair-Scanner-Analysis/FULL_TECHNICAL_SPECIFICATION.md)**. 
+
+This document provides 20+ pages of "Micro-Detail" documentation for professional quantitative auditing.
+
 ---
 
 ## 🚀 The Boot Sequence: System Initialization
