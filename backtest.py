@@ -150,7 +150,7 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, daily_regimes: dict = N
                 # Consensus Rule: 1H Signal must match 1D Trend Direction
                 if direction_hmm != d_direction:
                     desired = 0
-                    # print(f"      [MTF VETO] {symbol} {direction_hmm} conflicts with 1D {d_direction}")
+                    print(f"      [MTF VETO] {symbol} {direction_hmm} conflicts with 1D {d_direction}")
 
             if adjusted_prob < conf_thresh:
                 desired = 0
