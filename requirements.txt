@@ -7,3 +7,11 @@ statsmodels
 seaborn
 xlrd
 openpyxl
+xgboost
+google-search-results
+transformers
+torch
+python-dotenv
+scipy
+joblib
+numpy
