@@ -1,66 +1,112 @@
-# Currency Pair Scanner & Analysis (Unified Macro-Quant)
+# Institutional HMM Macro-Quant Scanner (Unified 2026 Engine)
 
-A high-sophistication quantitative scanner designed for the structural volatility of 2026. It integrates multi-dimensional **Hidden Markov Models (HMM)**, real-time **Macro-Economic Intelligence (FRED)**, and **Regime-Aware Risk Protection** to identify and validate high-conviction breakout opportunities.
+A high-sophistication quantitative scanner designed for the structural volatility of 2026 markets. This system integrates multi-dimensional **Hidden Markov Models (HMM)**, real-time **Macro-Economic Intelligence**, and **Neural Sentiment Analysis** to identify and validate high-conviction breakout opportunities across 22 assets (FX & Commodities).
 
-## 🚀 Key Features
+---
 
-- **End-to-End Macro Pipeline**: Automated fetching from **FRED** and **Yahoo Finance**. Monitors 10Y Yields, Policy Rates, and Geopolitical Risk (GPR) indices.
-- **Regime Detection (HMM)**: Uses a 6-feature "Canonical Engine" (Returns, Volatility, RSI, etc.) to classify markets into *Consolidation*, *Mean Reversion*, or *Trend Breakout*.
-- **Fundamental Gatekeeper (Bouncer)**: Validates technical breakouts against Yield Spread Momentum and Central Bank Policy Rate differentials.
-- **Jump Watchdog**: Real-time 1-minute monitoring using **Mahalanobis Distance** (Gold) and **Z-Scores** (FX) to pause trading during extreme market shocks.
-- **War-Time Logic**: Specialized handling for Gold (`GC=F`) and Oil (`CL=F`) with Real Yield filters and strict 4h/8h time-based exits to manage flash-gap risks.
-- **Liquidity Awareness**: Implements "Lunch Zone" penalties (London Lunch / NY Pre-Open) by automatically raising confidence thresholds during low-liquidity windows.
-- **Dynamic Exit Engine**: ATR-based TP/SL targets that scale with regime intensity (3:1 for Trends, 1.5:1 for Scalps).
-- **High-Frequency Micro-CVD**: Processes rolling 1-minute data directly within the 1-hour candle to detect limit-order absorption and Institutional traps.
-- **Real-Time NLP Sentiment**: Integrates SerpApi & FinBERT to analyze live Google News headlines and generate continuous Fear/Greed probability scaling.
-- **Dynamic Portfolio Optimization**: Uses localized Markowitz Mean-Variance weighting (MPT) to calculate the maximum Sharpe Ratio allocation across active signals.
-- **Hybrid AI Ensembling**: Overlays a supervised XGBoost classification layer directly on top of unsupervised HMM vectors to veto statistical false-positives.
+## 🏗️ System Architecture
 
-## 🧠 Sophisticated Logic Framework
+```mermaid
+graph TD
+    A[Data Acquisition] --> B[Macro Filter Layer]
+    B --> C[Regime Detection Layer]
+    C --> D[Validation Layer]
+    D --> E[Execution & Portfolio Optimization]
 
-### 1. The Macro Gatekeeper (`macro_bouncer.py`)
-Technical signals must pass through a multi-layered fundamental filter:
-- **Yield Spread Momentum**: Aligns mixed-frequency data to calculate 10-day momentum. Approves LONGs only when yields support the thematic move.
-- **Policy Rate Bias**: Real-time integration of FEDFUNDS and ECB rates. Generates "Macro Vetoes" if central bank stances diverge from technical signals.
-- **Geopolitical Risk (GPR)**: Automatically switches to "Safe Haven Mode" (prioritizing Gold/USD) when GPR spikes beyond 2.0 standard deviations.
+    subgraph "Layer 1: Macro & Fundamentals"
+        B1[FRED Yield Spreads]
+        B2[Policy Rate Bias]
+        B3[Geopolitical Risk GPR]
+    end
 
-### 2. Regime-Aware Entry Trigger (`hmm_analysis.py`)
-- **Standardized Features**: Maintains a fixed 6-pillar feature vector for HMM compatibility across training and live execution.
-- **1.2 Candle Logic**: Requires a breakout magnitude of 1.2x ATR for major pairs to filter out "Whipsaw" noise in macro-congested zones.
-- **Regime-Shift Exits**: If the bot detects a transition from 'Trend Breakout' back to 'Consolidation', it identifies an early exit recommendation to preserve capital.
+    subgraph "Layer 2: Unsupervised Learning"
+        C1[HMM Baum-Welch 3-State]
+        C2[Feature Vector: Ret/Vol/RSI/Yields/CVD]
+    end
 
-### 3. Execution & Risk Management (`main.py`)
-- **Trade Tracker**: Persists active signals in `trade_tracker.json` to manage multi-candle trades and signal expiry (3 bars for FX, 2 for Commodities).
-- **Progressive Stops**: Automatically trails SL once PnL reaches 1.5 ATR (Trend) or 0.8 ATR (Mean Reversion).
-- **Correlation Hedging & Optimization**: Diverts capital utilizing true Markowitz Matrix calculations instead of naive single-cluster elimination.
+    subgraph "Layer 3: Validation"
+        D1[Micro-CVD Order Flow]
+        D2[FinBERT NLP Sentiment]
+        D3[XGBoost Supervised Veto]
+    end
 
-### 4. Advanced Institutional Modules (Phase 4)
-- **`micro_cvd_engine.py`**: A high-frequency sub-hourly limit order analyzer.
-- **`sentiment_fetcher.py`**: Dynamic Neural-Network macro parser querying real-time Google News.
-- **`generate_xgboost_dataset.py` & `train_xgboost.py`**: Offline architecture generating massive labeled historical matrix arrays to fit supervised Ensemble models to historical HMM performance.
+    subgraph "Layer 4: Capital Allocation"
+        E1[Markowitz Mean-Variance MPT]
+        E2[Sharpe Ratio Maximization]
+        E3[Correlation Cluster Hedging]
+    end
+```
+
+---
+
+## 🚀 Key Features (Phase 1–4)
+
+### 1. Advanced Regime Detection
+*   **HMM Canonical Engine**: Classifies markets into *Consolidation*, *Mean Reversion*, or *Trend Breakout* using a 6-pillar feature vector.
+*   **Adaptive Fitting**: Triggers automatic 4-hour Baum-Welch re-fitting on live data to adjust for shifting volatility regimes.
+
+### 2. Institutional Logic & Validation
+*   **Micro-CVD Engine**: Proxies institutional limit-order absorption using 1-minute intensive delta analysis. Vetoes breakouts that lack volumetric support.
+*   **Neural Sentiment (FinBERT)**: Connects to SerpApi (Google News) to score macro headlines via a transformer model, applying a dynamic multiplier to signal confidence.
+*   **XGBoost Hybrid Ensemble**: Bridges unsupervised HMMs with supervised Gradient Boosting to learn and filter historical statistical "traps."
+
+### 3. Quantitative Risk & Optimization
+*   **Markowitz Portfolio Optimization**: Uses `scipy.optimize` to calculate specific capital allocations that maximize the Portfolio Sharpe Ratio across active signals.
+*   **Jump Watchdog**: Pauses analysis during extreme volatility spikes (Mahalanobis Distance for Gold, Z-Scores for FX).
+*   **War-Time Logic**: Strict time-based exits (4h/8h) for Oil and Gold to mitigate geopolitical flash-gap risks.
+
+---
 
 ## 🛠️ Installation & Setup
 
-1. **Environment**: Recommended Python 3.12.
-   ```powershell
-   py -3.12 -m venv .venv
-   .\.venv\Scripts\Activate.ps1
-   pip install -r requirements.txt
-   ```
-2. **Execution**:
-   - **Training**: `python train_hmm.py` (Fits Baum-Welch parameters on 1 year of data).
-   - **Live Scanner**: `python main.py` (Runs the infinite analysis loop).
-   - **Backtest**: `python backtest.py` (Full walk-forward simulation of the 2026 logic).
+### 1. Prerequisites
+*   Python 3.12+
+*   FRED API Key (Federal Reserve Economic Data)
+*   SerpApi Key (Google News Scraper)
 
-## 📁 Output Artifacts
-- `analysis_summary.csv`: Real-time signal summary with macro bias warnings.
-- `trade_tracker.json`: Active trade state and progressive stop-loss levels.
-- `correlation_clusters.png`: Visual mapping of asset dependencies via K-Means clustering.
-- `backtest_results.csv`: Comprehensive performance metrics (Sharpe, Max Drawdown).
+### 2. Environment Setup
+```powershell
+# Create & Activate Virtual Environment
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
 
-## ⚙️ Configuration
-Adjust parameters in `config.py` for thresholds, ticker mappings, and risk limits.
+# Install Heavy Dependencies (XGBoost, Torch, etc.)
+pip install -r requirements.txt
+```
 
-## 🚀 Verification Results (Phase 4 Rollout)
-- **Models Retrained**: All 22 assets successfully updated to the new architecture.
-- **Phase 4 Completeness**: Micro-CVD Engine, NLP Sentiment, Markowitz MPT, and XGBoost Hybrid algorithms have all been constructed and cleanly routed into the live scanner.
+### 3. Configuration
+Create a `.env` file in the root directory:
+```env
+FRED_API_KEY=your_key_here
+SERPAPI_KEY=your_key_here
+```
+
+---
+
+## 📁 Core Modules & Usage
+
+| Script | Purpose |
+| :--- | :--- |
+| `main.py` | The infinite 5-minute production loop. Runs the full pipeline. |
+| `train_hmm.py` | Historical fitting for the Unsupervised HMM layers. |
+| `generate_xgboost_dataset.py` | Processes years of HMM logs to create a supervised training matrix. |
+| `train_xgboost.py` | Fits the XGBoost binary classifier (Veto Layer) to the HMM outputs. |
+| `backtest.py` | Full walk-forward simulation suite using 2026 logic. |
+| `sentiment_fetcher.py` | Handles SerpApi scraping and FinBERT NLP scoring. |
+| `micro_cvd_engine.py` | High-frequency 1-min CVD delta analyzer. |
+| `macro_bouncer.py` | Core fundamental gating (Yield Spreads / Policy Rates). |
+
+---
+
+## 📈 Operational Workflow
+
+1.  **Initialize**: Fit baseline models using `python train_hmm.py`.
+2.  **AI Layer (Optional)**: Build the XGBoost veto matrix by running `python generate_xgboost_dataset.py`, followed by `python train_xgboost.py`.
+3.  **Run Production**: Start the live scanner with `python main.py`.
+
+---
+
+## 🚀 Verification Results (Phase 4 Finalized)
+*   **Execution Stability**: Verified 5-minute cooldown loop with zero memory leaks over extended runs.
+*   **API Integrity**: Successfully synchronized FRED (Macro), yfinance (Price/CVD), and SerpApi (NLP).
+*   **Logic Alignment**: Confirmed that the Veto Layer (XGBoost/NLP/CVD) correctly filters "Whipsaw" breakouts in low-liquidity zones.
