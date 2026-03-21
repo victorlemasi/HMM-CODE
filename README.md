@@ -42,7 +42,13 @@ The system employs a "Defense-in-Depth" strategy. A signal must survive all 7 la
 
 ### Layer 5: The Gravity Curve (Yield Spread Momentum)
 *   **Metrics**: US 10Y vs German 10Y, US 2s10s Curve Steepness.
+*   **Policy Rate Lock**: A **1.5% (150 bps)** differential between Base/Quote rates triggers a baseline fundamental bias.
+*   **Yield Momentum**: Calculates **240-Bar Momentum** of the spread ($Y_{base} - Y_{quote}$).
 *   **Veto Logic**: Detects "Bull-Steepener" traps. If the US curve is steepening while inverted, USD Longs are restricted to prevent trading into a hard-landing shock.
+
+### Layer 6: JPY-Specific Safeguards
+- **DXY Bridge**: JPY models are automatically correlated to USD Strength (`DX-Y.NYB`) to detect global risk-off yen squeezes.
+- **BoJ Sentiment**: NLP strictly targets "Bank of Japan" news within a **private 6-hour window**.
 
 ### Layer 6: The XGBoost Hybrid Ensemble (Supervised Veto)
 *   **Training Target**: $Forward\_Return > 0.5 \times ATR$ in 24 hours.
