@@ -103,159 +103,112 @@ def calculate_bb_width(df, period=20):
     width = (upper - lower) / (sma + 1e-9)
     return width
 
-def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: Optional[Dict[str, Any]] = None, model=None):
+def prepare_hmm_features(df: pd.DataFrame, ticker: str, macro_data: dict) -> np.ndarray | None:
     """
-    Fits an HMM to detect price regimes using BIC for optimal state selection.
-    Features: Returns, Volatility, Range, Momentum, RSI + 1 Asset-Specific (Mapping).
-    Unified to exactly 6 features for cross-fetch stability.
+    Canonical feature engineering for HMM. 
+    Maintains exactly 6 features in a fixed order for model compatibility.
     """
     df = df.copy()
     
-    # 1. Feature Engineering
+    # 1. Base Features
     df['Returns'] = np.log(df['Close'] / df['Close'].shift(1))
     df['Range'] = (df['High'] - df['Low']) / df['Close']
     df['Volatility'] = df['Returns'].rolling(window=10).std()
     df['Momentum'] = df['Returns'].rolling(window=5).mean() - df['Returns'].rolling(window=20).mean()
     df['RSI'] = calculate_rsi(df['Close'])
-    df['ATR'] = calculate_atr(df)
-    df['ATR_Norm'] = df['ATR'] / df['Close']
+    df['Spec_Feat'] = 0.0 # Default padding
     
-    features_cols = ['Returns', 'Volatility', 'Range', 'Momentum', 'RSI']
+    features_cols = ['Returns', 'Volatility', 'Range', 'Momentum', 'RSI', 'Spec_Feat']
     
-    features_cols = ['Returns', 'Volatility', 'Range', 'Momentum', 'RSI']
-    
-    # Standardize: Volume/SmartRatio removed for cross-fetch consistency
-
-    # 1.1 Asset-Specific Features
+    # 2. Asset-Specific Macro Enrichment
     if ticker in ASSET_MAPPINGS and macro_data:
         mapping = ASSET_MAPPINGS[ticker]
         m_type = mapping['type']
-        m_key = mapping.get('key') # Use .get() as 'macro' doesn't have a 'key'
         
-        # "Clean-Join" Pattern: Standardize and align
-        # Robust index normalization for comparison (fixes s vs ns precision)
-        df.index = pd.to_datetime(df.index).tz_localize(None).as_unit('ns') if hasattr(df.index, 'as_unit') else pd.to_datetime(df.index).tz_localize(None)
+        # Normalize index for safe reindexing (fixes timezone/ns issues)
+        def _norm(frame):
+            idx = pd.to_datetime(frame.index)
+            if idx.tzinfo is not None: idx = idx.tz_localize(None)
+            if hasattr(idx, 'as_unit'): idx = idx.as_unit('ns')
+            frame = frame.copy(); frame.index = idx
+            return frame
+
+        df = _norm(df)
         price_idx = df.index
         
-        if m_type == 'commodity':
-            com_ticker = COMMODITY_TICKERS.get(m_key)
-            if com_ticker in macro_data:
-                com_df = macro_data[com_ticker].copy()
-                com_df.index = pd.to_datetime(com_df.index).tz_localize(None).as_unit('ns') if hasattr(com_df.index, 'as_unit') else pd.to_datetime(com_df.index).tz_localize(None)
-                
-                # Align and map daily/sparse data to high-freq index
-                com_df_aligned = com_df.reindex(price_idx, method='ffill').bfill()
-                
-                # Rolling correlation with commodity returns
-                com_ret = np.log(com_df_aligned['Close'] / com_df_aligned['Close'].shift(1))
-                df['Spec_Feat'] = com_ret.rolling(20).corr(df['Returns'])
-                features_cols.append('Spec_Feat')
-                
-        elif m_type == 'yield':
-            yield_ticker = YIELD_TICKERS.get(m_key)
-            if yield_ticker in macro_data:
-                yield_df = macro_data[yield_ticker].copy()
-                yield_df.index = pd.to_datetime(yield_df.index).tz_localize(None).as_unit('ns') if hasattr(yield_df.index, 'as_unit') else pd.to_datetime(yield_df.index).tz_localize(None)
-                
-                # Align and carry yields into FX session gaps
-                yield_df_aligned = yield_df.reindex(price_idx, method='ffill').bfill()
-                
-                # Include absolute yield level
-                df['Spec_Feat'] = yield_df_aligned['Close'] 
-                features_cols.append('Spec_Feat')
-
-        elif m_type == 'macro':
-            base_key = mapping['base']
-            quote_key = mapping['quote']
-            # Search both Yahoo and FRED sources
-            base_ticker = YIELD_TICKERS.get(base_key) or FRED_TICKERS.get(base_key)
-            quote_ticker = YIELD_TICKERS.get(quote_key) or FRED_TICKERS.get(quote_key)
-            dxy_ticker = YIELD_TICKERS.get('DXY')
+        try:
+            if m_type == 'commodity':
+                com_ticker = COMMODITY_TICKERS.get(mapping.get('key'))
+                if com_ticker in macro_data and not macro_data[com_ticker].empty:
+                    com_df = _norm(macro_data[com_ticker]).reindex(price_idx, method='ffill').bfill()
+                    com_ret = np.log(com_df['Close'] / com_df['Close'].shift(1))
+                    df['Spec_Feat'] = com_ret.rolling(20).corr(df['Returns']).fillna(0)
             
-            if base_ticker in macro_data and quote_ticker in macro_data and not macro_data[base_ticker].empty and not macro_data[quote_ticker].empty:
-                base_df = macro_data[base_ticker].copy()
-                quote_df = macro_data[quote_ticker].copy()
-                
-                base_df.index = pd.to_datetime(base_df.index).tz_localize(None).as_unit('ns') if hasattr(base_df.index, 'as_unit') else pd.to_datetime(base_df.index).tz_localize(None)
-                quote_df.index = pd.to_datetime(quote_df.index).tz_localize(None).as_unit('ns') if hasattr(quote_df.index, 'as_unit') else pd.to_datetime(quote_df.index).tz_localize(None)
-                
-                # Align both and calc spread
-                base_aligned = base_df.reindex(price_idx, method='ffill').bfill()
-                quote_aligned = quote_df.reindex(price_idx, method='ffill').bfill()
-                
-                df['Spec_Feat'] = base_aligned['Close'] - quote_aligned['Close']
-                features_cols.append('Spec_Feat')
-                
-                # --- EFFICIENCY EQUILIBRIUM: 2s10s spread ROC ---
-                is_eur = ticker.startswith("EUR") if ticker else False
-                two_y_key = 'GER2Y' if is_eur else 'UK2Y'
-                two_y_ticker = FRED_2Y_TICKERS.get(two_y_key)
-                
-                if two_y_ticker in macro_data and not macro_data[two_y_ticker].empty:
-                    two_y_df = macro_data[two_y_ticker].copy()
-                    two_y_df.index = pd.to_datetime(two_y_df.index).tz_localize(None).as_unit('ns') if hasattr(two_y_df.index, 'as_unit') else pd.to_datetime(two_y_df.index).tz_localize(None)
-                    two_y_aligned = two_y_df.reindex(price_idx, method='ffill').bfill()
+            elif m_type == 'yield':
+                yield_ticker = YIELD_TICKERS.get(mapping.get('key'))
+                if yield_ticker in macro_data and not macro_data[yield_ticker].empty:
+                    y_df = _norm(macro_data[yield_ticker]).reindex(price_idx, method='ffill').bfill()
+                    df['Spec_Feat'] = y_df['Close'].fillna(0)
+
+            elif m_type == 'macro':
+                base_t = YIELD_TICKERS.get(mapping['base']) or FRED_TICKERS.get(mapping['base'])
+                quote_t = YIELD_TICKERS.get(mapping['quote']) or FRED_TICKERS.get(mapping['quote'])
+                if base_t in macro_data and quote_t in macro_data:
+                    base_a = _norm(macro_data[base_t]).reindex(price_idx, method='ffill').bfill()
+                    quote_a = _norm(macro_data[quote_t]).reindex(price_idx, method='ffill').bfill()
                     
-                    # Domestic 2s10s spread
-                    spread_2s10s = base_aligned['Close'] - two_y_aligned['Close']
-                    # ROC of the spread (5-bar rolling change)
-                    df['Yield_ROC'] = spread_2s10s.diff(5)
-                    df['Yield_ROC'] = df['Yield_ROC'].fillna(0)
-                    features_cols.append('Yield_ROC')
-                # We use -DXY as the feature because stronger DXY -> lower EURUSD/GBPUSD
-                dxy_ticker = YIELD_TICKERS.get('DXY')
-                if dxy_ticker in macro_data:
-                    dxy_df = macro_data[dxy_ticker].copy()
-                    dxy_df.index = pd.to_datetime(dxy_df.index).tz_localize(None).as_unit('ns') if hasattr(dxy_df.index, 'as_unit') else pd.to_datetime(dxy_df.index).tz_localize(None)
-                    dxy_aligned = dxy_df.reindex(price_idx, method='ffill').bfill()
-                    df['Spec_Feat'] = -dxy_aligned['Close']
-                    features_cols.append('Spec_Feat')
-        
-        elif m_type == 'commodity_inverse':
-            # Add DXY correlation for Oil/Inverses
-            dxy_ticker = YIELD_TICKERS.get('DXY')
-            if dxy_ticker in macro_data:
-                dxy_df = macro_data[dxy_ticker].copy()
-                dxy_df.index = pd.to_datetime(dxy_df.index).tz_localize(None).as_unit('ns') if hasattr(dxy_df.index, 'as_unit') else pd.to_datetime(dxy_df.index).tz_localize(None)
-                dxy_aligned = dxy_df.reindex(price_idx, method='ffill').bfill()
-                df['Spec_Feat'] = dxy_aligned['Close'].rolling(20).corr(df['Returns'])
-                features_cols.append('Spec_Feat')
+                    # Yield ROC of 2s10s spread (High info content)
+                    is_eur = ticker.startswith("EUR")
+                    two_y_t = FRED_2Y_TICKERS.get('GER2Y' if is_eur else 'UK2Y')
+                    if two_y_t in macro_data and not macro_data[two_y_t].empty:
+                        two_y_a = _norm(macro_data[two_y_t]).reindex(price_idx, method='ffill').bfill()
+                        spread_2s10s = base_a['Close'] - two_y_a['Close']
+                        df['Spec_Feat'] = spread_2s10s.diff(5).fillna(0)
+                    else:
+                        df['Spec_Feat'] = (base_a['Close'] - quote_a['Close']).fillna(0)
+            
+            elif m_type == 'commodity_inverse':
+                dxy_t = YIELD_TICKERS.get('DXY')
+                if dxy_t in macro_data and not macro_data[dxy_t].empty:
+                    dxy_a = _norm(macro_data[dxy_t]).reindex(price_idx, method='ffill').bfill()
+                    df['Spec_Feat'] = dxy_a['Close'].rolling(20).corr(df['Returns']).fillna(0)
+        except Exception:
+            pass # Fall back to 0.0 padding for Spec_Feat on error
 
-    # ── Feature count normalisation ─────────────────────────────────────────
-    # MUST match train_hmm.py: exactly 6 features
-    #   [Returns, Volatility, Range, Momentum, RSI, Spec_Feat]
-    # If macro enrichment above didn't add Spec_Feat, zero-pad it now.
-    if 'Spec_Feat' not in df.columns:
-        df['Spec_Feat'] = 0.0
-    if 'Spec_Feat' not in features_cols:
-        features_cols.append('Spec_Feat')
-
-    # Keep exactly 6 — truncate any accidental extras
-    features_cols = features_cols[:6]
-
-    # Fill any residual NaNs before drop (macro data can have gaps)
+    # 3. Finalization
     for col in features_cols:
-        if col in df.columns:
-            df[col] = df[col].ffill().bfill().fillna(0)
-
+        df[col] = df[col].ffill().bfill().fillna(0)
+        
     df = df.dropna(subset=features_cols)
-
     
-    # 1.2 "Goldilocks" Window: Use 1,000 - 1,200 bars to avoid overfitting
-    # 70 days of 1h data is ~1680 bars, we trim to most recent 1200 for fitting
+    # 4. "Goldilocks" Window
     max_fit_bars = 1200
     if len(df) > max_fit_bars:
         df = df.iloc[-max_fit_bars:]
         
-    features = df[features_cols].values
+    if df.empty:
+        return None
+        
+    return df[features_cols].values # Fixed order as defined in features_cols
+
+def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: Optional[Dict[str, Any]] = None, model=None):
+    """
+    Fits an HMM to detect price regimes and returns standardized results.
+    Signature: regime, prob, direction, is_breakout, state_id, atr
+    """
+    # 1. Shared Feature Engineering
+    features = prepare_hmm_features(df, ticker, macro_data)
+    if features is None:
+        return "None", 0.0, "None", False, -1, 0.0
+        
     scaler = StandardScaler()
     features_scaled = scaler.fit_transform(features)
     
     # 2. Asset-Specific HMM Selection
+    hmm_model = None
     best_n = ASSET_N_COMPONENTS.get(ticker, ASSET_N_COMPONENTS.get('DEFAULT', 3))
     
     # 2.1 Unified Transfer Learning Layer: Handle passed model or load from disk
-    pretrained_loaded = False
     model_data = None
 
     if isinstance(model, dict) and 'model' in model:
@@ -272,11 +225,10 @@ def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: 
 
     if model_data:
         try:
-            model = model_data['model']
+            hmm_model = model_data['model']
             scaler = model_data['scaler']
             features_scaled = scaler.transform(features)
-            best_n = model.n_components
-            pretrained_loaded = True
+            best_n = hmm_model.n_components
             
             # --- HYBRID TRANSFER LEARNING: Fine-tuning based on Asset Class ---
             is_comm = any(x in ticker for x in ["GC=F", "CL=F"]) if ticker else False
@@ -287,145 +239,86 @@ def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: 
 
             if n_fine_tune > 0:
                 # Local adaptation via Baum-Welch
-                model.init_params = ""  # Use loaded params as warm start
-                model.n_iter = n_fine_tune
-                model.fit(features_scaled)
+                hmm_model.init_params = ""  # Use loaded params as warm start
+                hmm_model.n_iter = n_fine_tune
+                hmm_model.fit(features_scaled)
 
                 # STABILITY GUARD: revert to base if NaNs detected post-fit
-                if np.isnan(model.transmat_).any() or np.isnan(model.means_).any():
+                if np.isnan(hmm_model.transmat_).any() or np.isnan(hmm_model.means_).any():
                     print(f"      [HMM WARNING] {ticker} fine-tuning produced NaNs. Reverting to base model.")
-                    model = pretrained_backup
+                    hmm_model = pretrained_backup
             else:
                 # FX: Use pure pre-trained weights for maximum stability
-                model = pretrained_backup
+                hmm_model = pretrained_backup
         except Exception as e:
-            model = None # Fall back to fresh fit
+            hmm_model = None # Fall back to fresh fit
 
     # 2.2 Fit HMM with Fallback logic (if not pre-trained or forced)
-    if model is None:
+    if hmm_model is None:
         n_tries = [best_n, 3, 2] if best_n > 3 else [3, 2]
-        # Remove duplicates while preserving order
         n_tries = list(dict.fromkeys(n_tries))
         
-        last_exception = None
         for n in n_tries:
             try:
-                model = GaussianHMM(
+                hmm_model = GaussianHMM(
                     n_components=n, covariance_type="diag",
                     n_iter=HMM_N_ITER, tol=1e-2, random_state=42,
                     covars_prior=HMM_COVARS_PRIOR,
                     min_covar=HMM_MIN_COVAR,
-                    init_params="stmc", params="stmc" # Ensure robust initialization
+                    init_params="stmc", params="stmc"
                 )
-                model.fit(features_scaled)
-                
-                # Validation: Check for invalid transition matrices (zero-sum rows)
-                if hasattr(model, 'transmat_'):
-                    row_sums = model.transmat_.sum(axis=1)
+                hmm_model.fit(features_scaled)
+                if hasattr(hmm_model, 'transmat_'):
+                    row_sums = hmm_model.transmat_.sum(axis=1)
                     if not np.allclose(row_sums, 1.0):
-                        # Attempt to fix nearly correct matrices
-                        model.transmat_ = model.transmat_ / row_sums[:, np.newaxis]
-                        row_sums = model.transmat_.sum(axis=1)
-                        if not np.allclose(row_sums, 1.0):
-                            model = None
-                            raise ValueError("Invalid transmat: rows do not sum to 1")
-                
-                best_n = n # Update best_n in case we fell back
+                        hmm_model.transmat_ = hmm_model.transmat_ / row_sums[:, np.newaxis]
                 break
-            except Exception as e:
-                model = None
-                last_exception = e
+            except Exception:
+                hmm_model = None
                 continue
         
-        if model is None or not hasattr(model, 'monitor_'):
-            print(f"      [HMM WARNING] {ticker} HMM failed! Using simple statistical fallback.")
-            avg_vol = float(df['Volatility'].mean())
-            curr_vol = float(df['Volatility'].iloc[-1])
-            avg_ret = float(df['Returns'].mean())
-            
-            # More descriptive regime fallback
-            if curr_vol > avg_vol * 1.5:
-                regime = "Trend Breakout"
-            elif curr_vol > avg_vol:
-                regime = "Mean Reversion"
-            else:
-                regime = "Consolidation"
-                
-            direction = "LONG" if avg_ret > 0 else "SHORT"
-            current_atr = float(df['ATR'].iloc[-1])
-            
-            print(f"      [FALLBACK] Regime: {regime} | Direction: {direction}")
-            return (regime == "Trend Breakout"), direction, regime, 0, current_atr, 1.0
-    else:
-        best_n = model.n_components
+        if hmm_model is None:
+            # Simple statistical fallback
+            atr = calculate_atr(df).iloc[-1]
+            return "Consolidation", 0.33, "None", False, -1, float(atr)
 
-    states = model.predict(features_scaled)
-    # Convert to plain Python ints throughout to avoid numpy hashability issues
+    states = hmm_model.predict(features_scaled)
     states = [int(s) for s in states]
     current_state_id = states[-1]
 
-    # 3. Regime Labeling — directly from HMM learned means
-    # States are ranked by absolute expected log-return (feature index 0)
-    # This is the canonical approach: the HMM's own learned parameters tell us
-    # which state is active (large |return| = Trend, small = Consolidation)
-    state_abs_returns = {i: abs(float(model.means_[i, 0])) for i in range(best_n)}
+    # 3. Regime Labeling
+    state_abs_returns = {i: abs(float(hmm_model.means_[i, 0])) for i in range(hmm_model.n_components)}
     sorted_states = sorted(state_abs_returns.keys(), key=lambda s: state_abs_returns[s])
 
-    # Also build variance map for secondary ranking / MMD guard
     state_metrics = {}
     states_arr = np.array(states)
-    for i in range(best_n):
+    for i in range(hmm_model.n_components):
         mask = (states_arr == i)
         state_metrics[i] = {
-            'ret': float(df['Returns'].values[mask].mean()) if np.sum(mask) > 0 else float(model.means_[i, 0]),
+            'ret': float(hmm_model.means_[i, 0]),
             'var': float(features_scaled[mask].var(axis=0).sum()) if np.sum(mask) > 0 else 0.0
         }
 
-    # Assign regime names by ascending |return mean|
     regime_names = ["Consolidation", "Mean Reversion", "Trend Breakout"]
-    if best_n == 4:
-        regime_names.append("Trend Breakout")   # double-weight for n=4
+    if hmm_model.n_components == 4: regime_names.append("Trend Breakout")
+    
     labels = {}
     for rank, state_id in enumerate(sorted_states):
         labels[state_id] = regime_names[min(rank, len(regime_names) - 1)]
 
-    # Guard: ensure Trend Breakout always exists (force highest-variance state if missing)
-    if "Trend Breakout" not in labels.values():
-        top_var = max(state_metrics.keys(), key=lambda k: state_metrics[k]['var'])
-        labels[top_var] = "Trend Breakout"
-
     regime = labels[current_state_id]
-
-    # 4. MMD Guard — only filter Trend Breakout if separation is genuinely negligible
-    # (relaxed threshold: 0.1 × ATR_NORM so only truly flat markets are suppressed)
-    if regime == "Trend Breakout":
-        cons_ids = [k for k, v in labels.items() if v == "Consolidation"]
-        if cons_ids:
-            cons_id  = cons_ids[0]
-            mu_cons  = state_metrics[cons_id]['ret']
-            mu_break = state_metrics[current_state_id]['ret']
-            current_atr_norm = float(df['ATR_Norm'].iloc[-1])
-
-            is_commodity = ticker in ['GC=F', 'CL=F'] or ('=F' in str(ticker))
-            k = ATR_MULTIPLIER_GOLD if is_commodity else ATR_MULTIPLIER_FX
-            # Use 10% of configured multiplier — very permissive, prevents only totally flat signals
-            mu_diff_threshold = current_atr_norm * k * 0.1
-            if abs(mu_break - mu_cons) < mu_diff_threshold:
-                regime = "Consolidation"
-
-
+    
+    # 4. Final Direction and Prob
+    avg_ret = state_metrics[current_state_id]['ret']
+    direction = "LONG" if avg_ret > 0 else "SHORT"
+    if regime == "Consolidation": direction = "None"
+    
     is_breakout = (regime == "Trend Breakout")
-    direction = "None"
-    if is_breakout or regime == "Mean Reversion":
-        avg_ret = state_metrics[current_state_id]['ret']
-        direction = "LONG" if avg_ret > 0 else "SHORT"
-    
-    current_atr = float(df['ATR'].iloc[-1])
-    # Get the posterior probability of the current state
-    state_probs = model.predict_proba(features_scaled)
+    state_probs = hmm_model.predict_proba(features_scaled)
     current_prob = float(state_probs[-1, current_state_id])
+    current_atr = float(calculate_atr(df).iloc[-1])
     
-    return is_breakout, direction, regime, current_state_id, current_atr, current_prob
+    return regime, current_prob, direction, is_breakout, current_state_id, current_atr
 
 def get_dynamic_exit_levels(regime, price, atr, direction, ticker=None, is_scalp=False):
     """

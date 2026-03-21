@@ -24,10 +24,12 @@ from config import (
     WATCHDOG_TICKERS
 )
 from gpr_fetcher import fetch_latest_gpr
-
 from sentiment_fetcher import fetch_market_sentiment
 from rebalancer import diversify_signals, find_correlation_hedges, get_exit_recommendations
-from macro_bouncer import check_fundamental_gatekeeper, get_macro_weight, get_yield_spread_momentum
+from macro_bouncer import (
+    check_fundamental_gatekeeper, get_macro_weight, 
+    check_geopolitical_risk, check_macro_alignment
+)
 
 TRACKER_FILE = 'trade_tracker.json'
 
@@ -74,29 +76,6 @@ class JumpWatchdog:
                 self.paused_until = datetime.now() + timedelta(minutes=15)
                 return True
         return False
-
-# (Local get_yield_spread_momentum removed — now imported from macro_bouncer.py)
-
-def check_macro_alignment(ticker, direction, macro_data):
-    """
-    Determines if the macro trend supports the technical breakout.
-    """
-    from config import ASSET_MAPPINGS
-    if not MAJORS_MACRO_ENABLE or ticker not in ASSET_MAPPINGS or ASSET_MAPPINGS[ticker]['type'] != 'macro':
-        return "WIN_PHASE" # Allow if macro is disabled or not a macro asset
-        
-    momentum = get_yield_spread_momentum(ticker, macro_data)
-    
-    # Threshold check
-    if abs(momentum) < YIELD_THRESHOLD:
-        return "TRAP_PHASE"
-        
-    if direction == "LONG" and momentum > 0:
-        return "WIN_PHASE"
-    elif direction == "SHORT" and momentum < 0:
-        return "WIN_PHASE"
-        
-    return "TRAP_PHASE"
 
 def main():
     watchdog = JumpWatchdog(WATCHDOG_TICKERS)
@@ -152,17 +131,18 @@ def main():
                 if is_gpr_spike and pair == SAFE_HAVEN_TICKER:
                     pair_warnings.append("GPR Spike -> Safe Haven Priority")
                     
-                regime, prob, direction = detect_breakout(df, pair, macro_data)
+                regime, prob, direction, is_breakout, state_id, current_atr = detect_breakout(df, pair, macro_data)
                 current_price = df['Close'].iloc[-1]
-                current_atr = calculate_atr(df)
                 
                 # War-Time Oil Protection
                 is_scalp = False
                 if pair == "CL=F":
-                    dxy_val = macro_data.get('DX-Y.NYB')['Close'].iloc[-1] if 'DX-Y.NYB' in macro_data else 100
-                    if dxy_val > 102.5:
-                        is_scalp = True
-                        pair_warnings.append("High DXY -> SCALP ONLY (Oil)")
+                    dxy_key = 'DX-Y.NYB'
+                    if dxy_key in macro_data:
+                        dxy_val = macro_data[dxy_key]['Close'].iloc[-1]
+                        if dxy_val > 102.5:
+                            is_scalp = True
+                            pair_warnings.append("High DXY -> SCALP ONLY (Oil)")
                 
                 tp, sl = get_dynamic_exit_levels(regime, current_price, current_atr, direction, ticker=pair, is_scalp=is_scalp)
                 
@@ -187,9 +167,7 @@ def main():
                 elif ("BULLISH" in gatekeeper_status) and direction == "SHORT":
                     logger.info(f"  [VETO] {pair} SHORT signal rejected: Macro Bias ({gatekeeper_status}).")
                     direction = "⚠️SHORT"
-                elif gatekeeper_status == "SCALP_ONLY" and pair == "CL=F":
-                    pass
-
+                
                 # --- LUNCH ZONE FILTER (London Lunch / NY Pre-Open) ---
                 hour_utc = datetime.now().hour
                 LUNCH_ZONE = (11, 13)

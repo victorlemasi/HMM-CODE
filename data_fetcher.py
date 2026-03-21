@@ -108,22 +108,33 @@ def get_macro_data(interval: str, period: str) -> Dict[str, pd.DataFrame]:
 def get_returns_matrix(data: Dict[str, pd.DataFrame]) -> pd.DataFrame:
     """
     Calculates percentage returns and joins them into a single matrix.
+    Safe-guarded against empty DataFrames and alignment issues.
     """
     returns = {}
     for pair, df in data.items():
-        # Ensure 'Close' is a Series
+        if df is None or df.empty:
+            continue
+            
+        # Ensure 'Close' exists and is handled as a Series
+        if 'Close' not in df.columns:
+            continue
+            
         close_prices = df['Close']
-        if isinstance(close_prices, pd.DataFrame): # Should not happen with MultiIndex fix above
+        if isinstance(close_prices, pd.DataFrame):
              close_prices = close_prices.iloc[:, 0]
         
-        returns[pair] = close_prices.pct_change().dropna()
+        # Calculate log returns for better statistical properties in clustering/HMM
+        s = np.log(close_prices / close_prices.shift(1)).dropna()
+        if not s.empty:
+            returns[pair] = s
     
     # Align dates
     if not returns:
         return pd.DataFrame()
     
     returns_df = pd.DataFrame(returns).dropna()
-    print(f"Returns Matrix built: {returns_df.shape}")
+    if not returns_df.empty:
+        print(f"Returns Matrix built: {returns_df.shape}")
     return returns_df
 
 def fetch_watchdog_data(tickers: List[str]) -> Dict[str, pd.DataFrame]:

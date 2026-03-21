@@ -29,7 +29,7 @@ from config import (
     COMMODITY_TICKERS, YIELD_TICKERS, FRED_TICKERS, FRED_2Y_TICKERS
 )
 from data_fetcher import fetch_data, get_macro_data
-from hmm_analysis import calculate_rsi, calculate_atr
+from hmm_analysis import calculate_rsi, calculate_atr, prepare_hmm_features
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -40,108 +40,9 @@ N_FEATURES = 6  # MUST match hmm_analysis.py — do not change independently
 
 def prepare_features(df: pd.DataFrame, ticker: str, macro_data: dict) -> np.ndarray | None:
     """
-    Canonical feature engineering.
-    MUST produce exactly N_FEATURES columns — identical to detect_breakout() in hmm_analysis.py.
-
-    Feature layout (fixed order):
-      0: Returns      — log price return
-      1: Volatility   — 10-bar rolling std of returns
-      2: Range        — (High-Low)/Close
-      3: Momentum     — 5-bar minus 20-bar rolling return avg
-      4: RSI          — 14-period RSI
-      5: Spec_Feat    — asset-specific macro signal (zero-padded if unavailable)
+    Wrapper for centralized feature engineering.
     """
-    df = df.copy()
-    df['Returns']    = np.log(df['Close'] / df['Close'].shift(1))
-    df['Range']      = (df['High'] - df['Low']) / df['Close']
-    df['Volatility'] = df['Returns'].rolling(window=10).std()
-    df['Momentum']   = df['Returns'].rolling(window=5).mean() - df['Returns'].rolling(window=20).mean()
-    df['RSI']        = calculate_rsi(df['Close'])
-    df['Spec_Feat']  = 0.0  # default — overwritten below if macro available
-
-    features_cols = ['Returns', 'Volatility', 'Range', 'Momentum', 'RSI', 'Spec_Feat']
-
-    # ── Macro enrichment (best-effort, never raises) ─────────────────────────
-    if ticker in ASSET_MAPPINGS and macro_data:
-        mapping  = ASSET_MAPPINGS[ticker]
-        m_type   = mapping['type']
-        m_key    = mapping.get('key')
-
-        # Normalise datetime index to tz-naive ns precision for safe reindex
-        def _norm_idx(frame: pd.DataFrame) -> pd.DataFrame:
-            idx = pd.to_datetime(frame.index)
-            if idx.tzinfo is not None:
-                idx = idx.tz_localize(None)
-            if hasattr(idx, 'as_unit'):
-                idx = idx.as_unit('ns')
-            frame = frame.copy()
-            frame.index = idx
-            return frame
-
-        df = _norm_idx(df)
-        price_idx = df.index
-
-        try:
-            if m_type == 'commodity':
-                com_ticker = COMMODITY_TICKERS.get(m_key)
-                if com_ticker and com_ticker in macro_data and not macro_data[com_ticker].empty:
-                    com = _norm_idx(macro_data[com_ticker]).reindex(price_idx, method='ffill').bfill()
-                    com_ret = np.log(com['Close'] / com['Close'].shift(1))
-                    df['Spec_Feat'] = com_ret.rolling(20).corr(df['Returns']).fillna(0)
-
-            elif m_type == 'yield':
-                y_ticker = YIELD_TICKERS.get(m_key)
-                if y_ticker and y_ticker in macro_data and not macro_data[y_ticker].empty:
-                    y = _norm_idx(macro_data[y_ticker]).reindex(price_idx, method='ffill').bfill()
-                    df['Spec_Feat'] = y['Close'].fillna(0)
-
-            elif m_type == 'macro':
-                base_key   = mapping['base']
-                quote_key  = mapping['quote']
-                base_t     = YIELD_TICKERS.get(base_key)  or FRED_TICKERS.get(base_key)
-                quote_t    = YIELD_TICKERS.get(quote_key) or FRED_TICKERS.get(quote_key)
-                dxy_t      = YIELD_TICKERS.get('DXY')
-
-                if (base_t  and base_t  in macro_data and not macro_data[base_t].empty and
-                    quote_t and quote_t in macro_data and not macro_data[quote_t].empty):
-                    base_a  = _norm_idx(macro_data[base_t]).reindex(price_idx, method='ffill').bfill()
-                    quote_a = _norm_idx(macro_data[quote_t]).reindex(price_idx, method='ffill').bfill()
-                    spread  = base_a['Close'] - quote_a['Close']
-
-                    # Try 2s10s spread ROC (most informative)
-                    is_eur   = ticker.startswith("EUR")
-                    two_y_t  = FRED_2Y_TICKERS.get('GER2Y' if is_eur else 'UK2Y')
-                    if two_y_t and two_y_t in macro_data and not macro_data[two_y_t].empty:
-                        two_y_a = _norm_idx(macro_data[two_y_t]).reindex(price_idx, method='ffill').bfill()
-                        spread_2s10s = base_a['Close'] - two_y_a['Close']
-                        df['Spec_Feat'] = spread_2s10s.diff(5).fillna(0)
-                    else:
-                        df['Spec_Feat'] = spread.fillna(0)
-
-                elif dxy_t and dxy_t in macro_data and not macro_data[dxy_t].empty:
-                    dxy_a = _norm_idx(macro_data[dxy_t]).reindex(price_idx, method='ffill').bfill()
-                    df['Spec_Feat'] = (-dxy_a['Close']).fillna(0)
-
-            elif m_type == 'commodity_inverse':
-                dxy_t = YIELD_TICKERS.get('DXY')
-                if dxy_t and dxy_t in macro_data and not macro_data[dxy_t].empty:
-                    dxy_a = _norm_idx(macro_data[dxy_t]).reindex(price_idx, method='ffill').bfill()
-                    df['Spec_Feat'] = dxy_a['Close'].rolling(20).corr(df['Returns']).fillna(0)
-
-        except Exception as macro_err:
-            logger.debug(f"  Macro enrichment failed for {ticker}: {macro_err} — using zero padding")
-            df['Spec_Feat'] = 0.0
-
-    # Fill any residual NaNs in core features before dropna
-    for col in features_cols:
-        if col in df.columns:
-            df[col] = df[col].ffill().bfill().fillna(0)
-
-    df = df.dropna(subset=features_cols)
-    if df.empty:
-        return None
-
-    return df[features_cols].values  # shape: (N, N_FEATURES=6)
+    return prepare_hmm_features(df, ticker, macro_data)
 
 
 from joblib import Parallel, delayed

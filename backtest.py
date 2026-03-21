@@ -29,7 +29,11 @@ warnings.filterwarnings("ignore")
 # Reuse existing project modules (read-only, no changes needed)
 from data_fetcher import fetch_data, get_macro_data
 from hmm_analysis import detect_breakout, get_dynamic_exit_levels, calculate_atr, get_trigger_price, calculate_z_score, calculate_mahalanobis_distance
-from macro_bouncer import check_fundamental_gatekeeper, get_macro_weight
+from macro_bouncer import (
+    check_fundamental_gatekeeper, get_macro_weight,
+    check_geopolitical_risk, get_yield_spread_momentum,
+    check_macro_alignment
+)
 from config import CURRENCY_PAIRS, MAJORS_FIX_LIST, WATCHDOG_TICKERS, WATCHDOG_JUMP_THRESHOLDS, LUNCH_ZONE, MAJORS_MIN_CONFIDENCE, MINORS_MIN_CONFIDENCE
 
 # ─── Configuration ─────────────────────────────────────────────────────────────
@@ -83,7 +87,7 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None
 
         try:
             # Pass pretrained_model for fine-tuning
-            is_breakout, direction, regime, _, current_atr, prob = detect_breakout(
+            regime, prob, direction, is_breakout, state_id, current_atr = detect_breakout(
                 train_slice, ticker=symbol, macro_data=macro_data, model=pretrained_model
             )
         except Exception as e:

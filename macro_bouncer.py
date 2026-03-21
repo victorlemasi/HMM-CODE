@@ -286,3 +286,23 @@ def get_yield_spread_momentum(ticker, macro_data, current_time=None):
     lb = min(len(spread) - 1, 240)
     momentum = spread.iloc[-1] - spread.iloc[-lb]
     return momentum
+def check_macro_alignment(ticker, direction, macro_data):
+    """
+    Determines if the macro trend supports the technical breakout.
+    """
+    from config import ASSET_MAPPINGS, MAJORS_MACRO_ENABLE, YIELD_THRESHOLD
+    if not MAJORS_MACRO_ENABLE or ticker not in ASSET_MAPPINGS or ASSET_MAPPINGS[ticker]['type'] != 'macro':
+        return "WIN_PHASE" # Allow if macro is disabled or not a macro asset
+        
+    momentum = get_yield_spread_momentum(ticker, macro_data)
+    
+    # Threshold check
+    if abs(momentum) < YIELD_THRESHOLD:
+        return "TRAP_PHASE"
+        
+    if direction == "LONG" and momentum > 0:
+        return "WIN_PHASE"
+    elif direction == "SHORT" and momentum < 0:
+        return "WIN_PHASE"
+        
+    return "TRAP_PHASE"

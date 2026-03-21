@@ -5,13 +5,11 @@ from typing import Dict, List, Tuple, Any
 def diversify_signals(summary: pd.DataFrame) -> pd.DataFrame:
     """
     Ensures only one asset per cluster is picked if multiple show BREAKOUT.
-    Selection is based on 'State' (BREAKOUT) and then we pick the first one 
-    in alphabetically sorted list or could be refined by volatility.
     """
-    breakouts: pd.DataFrame = summary[summary['State'] == 'Trend Breakout'].copy()
+    col = 'Regime' if 'Regime' in summary.columns else 'State'
+    breakouts: pd.DataFrame = summary[summary[col] == 'Trend Breakout'].copy()
     
     # Group by cluster and pick the first one
-    # This ensures diversification: only one position per correlated group.
     diversified = breakouts.groupby('Cluster').head(1)
     
     return diversified
@@ -19,10 +17,10 @@ def diversify_signals(summary: pd.DataFrame) -> pd.DataFrame:
 def get_exit_recommendations(summary: pd.DataFrame) -> List[str]:
     """
     Identifies assets that should be exited because they have left a 
-    high-convictions regime (e.g., no longer in Breakout or Trend).
+    high-convictions regime.
     """
-    # Assets NOT in Trend Breakout or Mean Reversion should be considered for exit
-    exit_list = summary[~summary['State'].isin(['Trend Breakout', 'Mean Reversion'])].index.tolist()
+    col = 'Regime' if 'Regime' in summary.columns else 'State'
+    exit_list = summary[~summary[col].isin(['Trend Breakout', 'Mean Reversion'])].index.tolist()
     return exit_list
 
 def find_correlation_hedges(summary: pd.DataFrame) -> List[Dict]:
@@ -30,7 +28,8 @@ def find_correlation_hedges(summary: pd.DataFrame) -> List[Dict]:
     Identifies 'Market Neutral' opportunities where different clusters 
     are breaking out in opposite directions.
     """
-    breakouts: pd.DataFrame = summary[summary['State'] == 'Trend Breakout'].copy()
+    col = 'Regime' if 'Regime' in summary.columns else 'State'
+    breakouts: pd.DataFrame = summary[summary[col] == 'Trend Breakout'].copy()
     if breakouts.empty:
         return []
 

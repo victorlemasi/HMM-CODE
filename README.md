@@ -4,60 +4,50 @@ A high-sophistication quantitative scanner designed for the structural volatilit
 
 ## 🚀 Key Features
 
-- **End-to-End Macro Pipeline**: Automated data fetching from **FRED** (St. Louis Fed) and **Yahoo Finance**. Captures 10Y Benchmark Yields and Central Bank Policy Rates (Fed Funds, ECB Rate).
-- **Fundamental Gatekeeper (Bouncer)**: Hybrid filtering using **Yield Spread Momentum** (aligned mixed frequencies) and **Policy Rate Differentials**.
-- **Regime Detection (HMM)**: Analyzes Log-Volatility and Returns across 3 states: *Consolidation*, *Mean Reversion*, and *Trend Breakout*. Uses **Absolute-Magnitude Return Ranking** for robust state classification (canonical HMM approach).
-- **Defensive Strike (1.2 Candle Logic)**: Specialized entry mechanism for major pairs (EURUSD, GBPUSD) that requires 1.2x ATR breakout confirmation to avoid "Trap Phases."
-- **War-Time Asset Guard**: Treats Gold (`GC=F`) and Oil (`CL=F`) as macro volatility sensors with strict time-exits (4h/8h) and Mahalanobis jump detection.
-- **Diversification Engine**: Automated correlation clustering (K-Means) and rebalancing to prevent over-exposure to linked currency themes.
-- **Baum-Welch Offline Training**: Dedicated module for large-scale historical parameter learning (optimized at **365 days**) to stabilize regime detection and adapt to current market volatility levels.
+- **End-to-End Macro Pipeline**: Automated fetching from **FRED** and **Yahoo Finance**. Monitors 10Y Yields, Policy Rates, and Geopolitical Risk (GPR) indices.
+- **Regime Detection (HMM)**: Uses a 6-feature "Canonical Engine" (Returns, Volatility, RSI, etc.) to classify markets into *Consolidation*, *Mean Reversion*, or *Trend Breakout*.
+- **Fundamental Gatekeeper (Bouncer)**: Validates technical breakouts against Yield Spread Momentum and Central Bank Policy Rate differentials.
+- **Jump Watchdog**: Real-time 1-minute monitoring using **Mahalanobis Distance** (Gold) and **Z-Scores** (FX) to pause trading during extreme market shocks.
+- **War-Time Logic**: Specialized handling for Gold (`GC=F`) and Oil (`CL=F`) with Real Yield filters and strict 4h/8h time-based exits to manage flash-gap risks.
+- **Liquidity Awareness**: Implements "Lunch Zone" penalties (London Lunch / NY Pre-Open) by automatically raising confidence thresholds during low-liquidity windows.
+- **Dynamic Exit Engine**: ATR-based TP/SL targets that scale with regime intensity (3:1 for Trends, 1.5:1 for Scalps).
 
 ## 🧠 Sophisticated Logic Framework
 
 ### 1. The Macro Gatekeeper (`macro_bouncer.py`)
-Technical signals are subjected to a rigorous fundamental validation suite:
-- **Yield Spread Momentum**: Compares 10Y benchmark yield differentials (e.g., DE10Y vs US10Y). Aligns mixed-frequency data (daily vs monthly) to calculate **10-day momentum**. Approves signals only if macro trends support the direction.
-- **Policy Rate Bias**: Real-time integration of **FEDFUNDS** and **ECBMRRFR**. Generates bullish/bearish overrides if central bank rates diverge by more than 1.5%.
-- **Commodity Inverse Filter**: Assets like Oil (`CL=F`) are weighted against DXY momentum to protect against structural dollar-driven reversals.
+Technical signals must pass through a multi-layered fundamental filter:
+- **Yield Spread Momentum**: Aligns mixed-frequency data to calculate 10-day momentum. Approves LONGs only when yields support the thematic move.
+- **Policy Rate Bias**: Real-time integration of FEDFUNDS and ECB rates. Generates "Macro Vetoes" if central bank stances diverge from technical signals.
+- **Geopolitical Risk (GPR)**: Automatically switches to "Safe Haven Mode" (prioritizing Gold/USD) when GPR spikes beyond 2.0 standard deviations.
 
 ### 2. Regime-Aware Entry Trigger (`hmm_analysis.py`)
-- **Dynamic Exit Levels**: ATR-based TP/SL targets that scale with current market volatility.
-- **1.2 Candle Logic**: In "Macro Trap Phases" (yields diverging from price), entries are only permitted if the current candle breaks the previous high/low by 1.2x ATR.
-- **Regime-Shift Protection**: Live detection of state transitions; if the HMM shifts from 'Breakout' to 'Consolidation', active trades are flagged for immediate re-evaluation.
+- **Standardized Features**: Maintains a fixed 6-pillar feature vector for HMM compatibility across training and live execution.
+- **1.2 Candle Logic**: Requires a breakout magnitude of 1.2x ATR for major pairs to filter out "Whipsaw" noise in macro-congested zones.
+- **Regime-Shift Exits**: If the bot detects a transition from 'Trend Breakout' back to 'Consolidation', it identifies an early exit recommendation to preserve capital.
 
-### 3. Verification & Stability
-- **Walk-Forward Backtest**: An independent `backtest.py` module replicates the live scanner's logic on 6 months of historical data to ensure architectural stability.
-- **Bayesian Prior Stability**: Uses `HMM_COVARS_PRIOR` and `HMM_MIN_COVAR` in `config.py` to prevent numerical instability during model training.
+### 3. Execution & Risk Management (`main.py`)
+- **Trade Tracker**: Persists active signals in `trade_tracker.json` to manage multi-candle trades and signal expiry (3 bars for FX, 2 for Commodities).
+- **Progressive Stops**: Automatically trails SL once PnL reaches 1.5 ATR (Trend) or 0.8 ATR (Mean Reversion).
+- **Correlation Hedging**: Identifies "Market Neutral" opportunities where correlated clusters are breaking out in opposite directions.
 
 ## 🛠️ Installation & Setup
 
-1. **Navigation**:
-   ```powershell
-   CD Currency-Pair-Scanner-Analysis
-   ```
-2. **Environment**: Recommended Python 3.12 (for `hmmlearn` stability).
-3. **Setup**:
+1. **Environment**: Recommended Python 3.12.
    ```powershell
    py -3.12 -m venv .venv
    .\.venv\Scripts\Activate.ps1
    pip install -r requirements.txt
    ```
-4. **Data Requirements**: Requires internet access to `yfinance` and `FRED` (St. Louis Fed) CSV exports.
-
-## 📈 Usage
-
-- **HMM Trainer**: `python train_hmm.py` (Runs Baum-Welch algorithm on a 1-year window to save pre-trained models).
-- **Live Scanner**: `python main.py` (Uses pre-trained models or fits live depending on `config.py`).
-- **Architecture Backtest**: `python backtest.py` (Full 22-pair walk-forward simulation).
+2. **Execution**:
+   - **Training**: `python train_hmm.py` (Fits Baum-Welch parameters on 1 year of data).
+   - **Live Scanner**: `python main.py` (Runs the infinite analysis loop).
+   - **Backtest**: `python backtest.py` (Full walk-forward simulation of the 2026 logic).
 
 ## 📁 Output Artifacts
 - `analysis_summary.csv`: Real-time signal summary with macro bias warnings.
+- `trade_tracker.json`: Active trade state and progressive stop-loss levels.
+- `correlation_clusters.png`: Visual mapping of asset dependencies via K-Means clustering.
 - `backtest_results.csv`: Comprehensive performance metrics (Sharpe, Max Drawdown).
-- `backtest_trade_log.csv`: Detailed log explaining SL/TP triggers and Regime-Shift exits.
-- `correlation_clusters.png`: Visual mapping of asset dependencies.
 
 ## ⚙️ Configuration
-Modify `config.py` to adjust:
-- `MAJORS_FIX_LIST`: Activation list for 1.2 Candle Logic.
-- `FRED_TICKERS`: Yield and Policy Rate mappings.
-- `YIELD_THRESHOLD`: Sensitivity of macro momentum filters.
+Adjust parameters in `config.py` for thresholds, ticker mappings, and risk limits.
