@@ -3,9 +3,9 @@
         "entry_price": 1.9821100234985352,
         "entry_time": "2026-03-21T23:01:25.705779",
         "tp": 4.974835234028953,
-        "sl": 1.9746207211698805,
+        "sl": 1.9776164421013422,
         "direction": "LONG",
-        "bars_active": 0,
+        "bars_active": 1,
         "regime": "Trend Breakout",
         "kelly_size": 2.0
     }
