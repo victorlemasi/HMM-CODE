@@ -32,6 +32,19 @@ def calculate_atr(df, period=14):
     true_range = np.max(ranges, axis=1)
     return true_range.rolling(window=period).mean()
 
+def calculate_synthetic_cvd(df, window=20):
+    """
+    Synthetic CVD building Intraday Intensity via OHLCV. 
+    Returns the Cumulative Volume Delta.
+    """
+    if 'Volume' not in df.columns:
+        return pd.Series(0, index=df.index)
+        
+    # Scale from -1.0 (Close at Low) to 1.0 (Close at High)
+    direction = (2 * ((df['Close'] - df['Low']) / (df['High'] - df['Low'] + 1e-9))) - 1
+    delta = df['Volume'] * direction
+    return delta.rolling(window=window).sum()
+
 def calculate_z_score(series, window=100):
     """
     Robust Z-Score calculation using Median Absolute Deviation (MAD).
@@ -327,12 +340,34 @@ def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: 
             regime = "Consolidation"
             direction = "None"
 
+    # SYNTHETIC CVD DIVERGENCE GATE
+    if regime == "Trend Breakout":
+        cvd_series = calculate_synthetic_cvd(df, window=20)
+        # Check if we have volume data by making sure CVD isn't just 0.0 everywhere
+        if len(cvd_series) >= 4 and pd.notna(cvd_series.iloc[-1]) and cvd_series.iloc[-1] != 0:
+            cvd_slope = cvd_series.iloc[-1] - cvd_series.iloc[-4] # 3-hour slope
+            
+            # Veto LONG if CVD shows massive selling
+            if direction == "LONG" and cvd_slope < 0:
+                regime = "Consolidation"
+                direction = "None"
+            # Veto SHORT if CVD shows massive buying
+            elif direction == "SHORT" and cvd_slope > 0:
+                regime = "Consolidation"
+                direction = "None"
+
     if regime == "Consolidation": direction = "None"
     
     is_breakout = (regime == "Trend Breakout")
     current_atr = float(calculate_atr(df).iloc[-1])
     
-    return regime, current_prob, direction, is_breakout, current_state_id, current_atr
+    # DYNAMIC KELLY SIZING
+    # Kelly = W - [(1 - W) / R]. We assume a base 1.5 Risk/Reward. 
+    # Mapped so that 0.70 confidence equals a standard ~1.0 multiplier.
+    kelly_raw = current_prob - ((1 - current_prob) / 1.5)
+    kelly_multiplier = float(max(0.1, min(2.5, kelly_raw / 0.50)))
+    
+    return regime, current_prob, direction, is_breakout, current_state_id, current_atr, kelly_multiplier
 
 def get_dynamic_exit_levels(regime, price, atr, direction, ticker=None, is_scalp=False):
     """
@@ -348,15 +383,13 @@ def get_dynamic_exit_levels(regime, price, atr, direction, ticker=None, is_scalp
         tp_dist = atr * 1.0
         sl_dist = atr * 2.0  # Increased from 1.5x for robustness
     elif regime == "Trend Breakout":
-        # Check if this is a Major inside MAJORS_FIX_LIST
-        if ticker in MAJORS_FIX_LIST:
-            tp_dist = atr * MAJORS_TP_MULTIPLIER
-            sl_dist = atr * 1.2 # Give it room to breathe
-        else:
-            tp_dist = atr * 2.0
-            # Commodities get more room (1.5x ATR) to avoid "noise" stops
-            is_commodity = ticker in ['GC=F', 'CL=F'] or ('=F' in str(ticker))
-            sl_dist = atr * 1.5 if is_commodity else atr * 1.0
+        # PHASE 3 CHANDELIER EXITS: We eliminate the finite TP for Breakouts. 
+        # Trades are closed exclusively by the trailing Stop Loss or regime shifts.
+        tp_dist = atr * 999.0 
+        
+        # Initial SL needs room to breathe before the Chandelier pulls it up
+        is_commodity = ticker in ['GC=F', 'CL=F'] or ('=F' in str(ticker))
+        sl_dist = atr * (1.5 if is_commodity else 1.2)
     else:
         return None, None
 

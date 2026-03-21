@@ -141,7 +141,7 @@ def main():
                 if is_gpr_spike and pair == SAFE_HAVEN_TICKER:
                     pair_warnings.append("GPR Spike -> Safe Haven Priority")
                     
-                regime, prob, direction, is_breakout, state_id, current_atr = detect_breakout(df, pair, macro_data)
+                regime, prob, direction, is_breakout, state_id, current_atr, kelly = detect_breakout(df, pair, macro_data)
                 current_price = df['Close'].iloc[-1]
                 
                 # War-Time Oil Protection
@@ -172,13 +172,6 @@ def main():
                 macro_weight = get_macro_weight(pair, direction, macro_data)
                 adjusted_prob = prob * macro_weight
                 
-                if ("BEARISH" in gatekeeper_status) and direction == "LONG":
-                    logger.info(f"  [VETO] {pair} LONG signal rejected: Macro Bias ({gatekeeper_status}).")
-                    direction = "⚠️LONG"
-                elif ("BULLISH" in gatekeeper_status) and direction == "SHORT":
-                    logger.info(f"  [VETO] {pair} SHORT signal rejected: Macro Bias ({gatekeeper_status}).")
-                    direction = "⚠️SHORT"
-                
                 # --- LUNCH ZONE FILTER (London Lunch / NY Pre-Open) ---
                 hour_utc = datetime.now().hour
                 LUNCH_ZONE_HOURS = (11, 13)
@@ -207,16 +200,29 @@ def main():
                         regime = "Consolidation" # Reset regime on expiry for consistency
                         del new_tracker[pair]
                     else:
-                        # PROGRESSIVE STOP (Trail if PnL > 1.5 ATR for Trend, > 0.8 ATR for Mean Rev)
-                        pnl_atr = (current_price - new_tracker[pair]['entry_price']) / current_atr if new_tracker[pair]['direction'] == "LONG" else (new_tracker[pair]['entry_price'] - current_price) / current_atr
-                        trail_trigger = 1.5 if regime == "Trend Breakout" else 0.8
-                        if pnl_atr > trail_trigger:
-                            new_sl = current_price - current_atr if new_tracker[pair]['direction'] == "LONG" else current_price + current_atr
+                        # --- ATR CHANDELIER EXIT (Phase 3) ---
+                        if new_tracker[pair].get('regime', 'Trend Breakout') == "Trend Breakout":
+                            trail_dist = current_atr * 1.5
                             if new_tracker[pair]['direction'] == "LONG":
-                                new_tracker[pair]['sl'] = max(new_tracker[pair].get('sl', 0), new_sl)
+                                new_sl = current_price - trail_dist
+                                if new_sl > new_tracker[pair].get('sl', 0):
+                                    new_tracker[pair]['sl'] = new_sl
+                                    logger.info(f"  {pair} | CHANDELIER EXIT: Trailed SL up to {new_sl:.5f}")
                             else:
-                                new_tracker[pair]['sl'] = min(new_tracker[pair].get('sl', 999999), new_sl)
-                            logger.info(f"  {pair} | PROGRESSIVE STOP: Tightened SL to {new_tracker[pair]['sl']:.5f} (PnL: {pnl_atr:.2f} ATR)")
+                                new_sl = current_price + trail_dist
+                                if new_sl < new_tracker[pair].get('sl', 999999):
+                                    new_tracker[pair]['sl'] = new_sl
+                                    logger.info(f"  {pair} | CHANDELIER EXIT: Trailed SL down to {new_sl:.5f}")
+                        else:
+                            # Standard Mean Reversion Protective Trail
+                            pnl_atr = (current_price - new_tracker[pair]['entry_price']) / current_atr if new_tracker[pair]['direction'] == "LONG" else (new_tracker[pair]['entry_price'] - current_price) / current_atr
+                            if pnl_atr > 0.8:
+                                new_sl = current_price - current_atr if new_tracker[pair]['direction'] == "LONG" else current_price + current_atr
+                                if new_tracker[pair]['direction'] == "LONG":
+                                    new_tracker[pair]['sl'] = max(new_tracker[pair].get('sl', 0), new_sl)
+                                else:
+                                    new_tracker[pair]['sl'] = min(new_tracker[pair].get('sl', 999999), new_sl)
+                                logger.info(f"  {pair} | PROGRESSIVE STOP: Tightened SL to {new_tracker[pair]['sl']:.5f}")
                 else:
                     # New Entry
                     if direction in ["LONG", "SHORT"]:
@@ -226,7 +232,9 @@ def main():
                             'tp': tp,
                             'sl': sl,
                             'direction': direction,
-                            'bars_active': 0
+                            'bars_active': 0,
+                            'regime': regime,
+                            'kelly_size': round(kelly, 2)
                         }
 
                 msg = f"  {pair} | Regime: {regime:15} | Bias: {direction:7} | Conf: {adjusted_prob:.2f}"

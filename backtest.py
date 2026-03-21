@@ -86,7 +86,7 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None
 
         try:
             # Pass pretrained_model for fine-tuning
-            regime, prob, direction, is_breakout, state_id, current_atr = detect_breakout(
+            regime, prob, direction, is_breakout, state_id, current_atr, kelly = detect_breakout(
                 train_slice, ticker=symbol, macro_data=macro_data, model=pretrained_model
             )
         except Exception as e:
@@ -116,26 +116,9 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None
             else:
                 # --- APPLY THE FUNDAMENTAL BOUNCER (Global Gatekeeper) ---
                 macro_bias = check_fundamental_gatekeeper(symbol, df.index[t], macro_data)
-                
-                # --- RELAXED MACRO OVERRIDE ---
-                # Allow high-confidence trades (>0.85) even against macro bias
-                is_veto = False
-                if "BEARISH" in macro_bias and direction_hmm == "LONG":
-                    is_veto = True
-                elif "BULLISH" in macro_bias and direction_hmm == "SHORT":
-                    is_veto = True
-                
-                if is_veto:
-                    if adjusted_prob > 0.75:
-                        print(f"      [MACRO OVERRIDE] {symbol} {direction_hmm} allowed due to High Conf: {adjusted_prob:.2f}")
-                        desired = 1 if direction_hmm == 'LONG' else -1
-                    else:
-                        desired = 0 
-                        print(f"      [VETO] {symbol} {direction_hmm} rejected by Macro Bias: {macro_bias} (Conf: {adjusted_prob:.2f})")
-                else:
-                    desired = 1 if direction_hmm == 'LONG' else -1
-                    if desired != 0:
-                        print(f"      [SIGNAL] {symbol} {direction_hmm} | Conf: {adjusted_prob:.2f} | Regime: {regime}")
+                desired = 1 if direction_hmm == 'LONG' else -1
+                if desired != 0:
+                    print(f"      [SIGNAL] {symbol} {direction_hmm} | Conf: {adjusted_prob:.2f} | Kelly Size: {kelly:.1f}x")
         
         # --- SIMULATED WATCHDOG (Audit Sync) ---
         if symbol in WATCHDOG_TICKERS and desired != 0:
@@ -204,14 +187,15 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None
                     position = 0; entry_price = None
                     continue
 
-                # --- PARABOLIC SAR TRAILING STOPS (Efficiency Equilibrium) ---
-                from config import EURUSD_FIX_LIST
-                if symbol in EURUSD_FIX_LIST:
-                    pnl_atr = (close - entry_price) / current_atr if position == 1 else (entry_price - close) / current_atr
-                    if pnl_atr > 0.5:
-                        move = pnl_atr * 0.5 * current_atr
-                        new_sl = entry_price + move if position == 1 else entry_price - move
-                        entry_sl = max(entry_sl, new_sl) if position == 1 else min(entry_sl, new_sl)
+                # --- ATR CHANDELIER EXIT (Phase 3) ---
+                if entry_regime == "Trend Breakout":
+                    trail_dist = current_atr * 1.5
+                    if position == 1:
+                        trail_level = high - trail_dist
+                        entry_sl = max(entry_sl, trail_level)
+                    elif position == -1:
+                        trail_level = low + trail_dist
+                        entry_sl = min(entry_sl, trail_level)
 
                 hit_tp = (position == 1 and high >= entry_tp) or (position == -1 and low <= entry_tp)
                 hit_sl = (position == 1 and low <= entry_sl) or (position == -1 and high >= entry_sl)

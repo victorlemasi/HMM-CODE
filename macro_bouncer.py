@@ -220,10 +220,21 @@ def get_macro_weight(ticker: str, direction: str, macro_data: dict) -> float:
             dxy_mom = dxy_df['Close'].iloc[-1] - dxy_df['Close'].iloc[-5]
             # Strengthening DXY (mom > 0) is Bearish for Oil
             # If DXY up, Score is -0.15 for Long, +0.15 for Short
-            score = -0.15 if dxy_mom > 0 else 0.15
-            return 1.0 + (score if direction == "LONG" else -score)
+            dxy_score = -0.15 if dxy_mom > 0 else 0.15
+            score += (dxy_score if direction == "LONG" else -dxy_score)
 
-    return 1.0
+    # --- THE GRAVITY CURVE (Yield Spread) ---
+    # Apply continuous yield multipliers to replace the old strict binary gates
+    spread_mom = get_yield_spread_momentum(ticker, macro_data)
+    if spread_mom != 0:
+        # Cap the max gravity pull to +/- 0.30
+        gravity = max(-0.30, min(0.30, spread_mom * 2.0))
+        if direction == "LONG":
+            score += gravity
+        elif direction == "SHORT":
+            score -= gravity
+
+    return max(0.5, min(1.5, 1.0 + score))
 
 def get_yield_spread_momentum(ticker, macro_data, current_time=None):
     """
