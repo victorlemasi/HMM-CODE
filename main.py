@@ -4,6 +4,7 @@ import json
 import os
 import sys
 from datetime import datetime, timedelta
+from typing import Optional
 import logging
 
 # Setup standard logging
@@ -12,7 +13,10 @@ logger = logging.getLogger(__name__)
 
 # Fix Windows console encoding for emoji/unicode in direction strings
 if hasattr(sys.stdout, 'reconfigure'):
-    sys.stdout.reconfigure(encoding='utf-8')
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except:
+        pass
 
 from data_fetcher import fetch_data, get_returns_matrix, get_macro_data, fetch_watchdog_data
 from clustering import cluster_assets, plot_clusters
@@ -27,8 +31,7 @@ from gpr_fetcher import fetch_latest_gpr
 from sentiment_fetcher import fetch_market_sentiment
 from rebalancer import diversify_signals, find_correlation_hedges, get_exit_recommendations
 from macro_bouncer import (
-    check_fundamental_gatekeeper, get_macro_weight, 
-    check_geopolitical_risk, check_macro_alignment
+    check_fundamental_gatekeeper, get_macro_weight
 )
 
 TRACKER_FILE = 'trade_tracker.json'
@@ -49,7 +52,7 @@ def save_tracker(data):
 class JumpWatchdog:
     def __init__(self, tickers):
         self.tickers = tickers
-        self.paused_until = None
+        self.paused_until: Optional[datetime] = None
         
     def check_for_jumps(self):
         if self.paused_until and datetime.now() < self.paused_until:
@@ -97,6 +100,13 @@ def main():
         # 1. Fetch data
         logger.info("Currency Pair Analysis Pipeline")
         
+        # --- INTRADAY RE-FITTING (4-Hour Window) ---
+        if loop_count % 4 == 0:
+            logger.info("      [HMM ADAPTATION] Triggering 4-hour Baum-Welch re-fitting for all assets...")
+            from train_hmm import train_all_models
+            train_all_models()
+            logger.info("      [HMM ADAPTATION] Re-fitting complete. All models synced to current volatility.")
+
         # --- JUMP WATCHDOG CHECK ---
         if watchdog.check_for_jumps():
             logger.info("INFORMATIONAL: Trading paused due to market shock. Continuing analysis for observation.")
@@ -149,14 +159,15 @@ def main():
                 if is_scalp:
                     logger.info(f"  {pair} | SCALP MODE: Applied 1:1 ATR targets.")
                 
-                # Calculate 1.2 Candle Trigger for All Macro Pairs
-                trigger = None
-                if pair in ASSET_MAPPINGS and ASSET_MAPPINGS[pair]['type'] == 'macro':
-                    trigger = get_trigger_price(df, direction)
-
                 # --- HYBRID MACRO GATEKEEPER (2026 Sync) ---
                 gatekeeper_status = check_fundamental_gatekeeper(pair, df.index[-1], macro_data)
                 macro_statuses[pair] = gatekeeper_status
+
+                # Calculate 1.2 Candle Trigger for All Macro Pairs
+                trigger = None
+                if pair in ASSET_MAPPINGS and ASSET_MAPPINGS[pair]['type'] == 'macro':
+                    macro_phase = "WIN_PHASE" if ("BULLISH" in gatekeeper_status or "BEARISH" in gatekeeper_status) else "TRAP_PHASE"
+                    trigger = get_trigger_price(df, regime, direction, current_atr, macro_phase=macro_phase)
                 
                 macro_weight = get_macro_weight(pair, direction, macro_data)
                 adjusted_prob = prob * macro_weight
@@ -170,10 +181,10 @@ def main():
                 
                 # --- LUNCH ZONE FILTER (London Lunch / NY Pre-Open) ---
                 hour_utc = datetime.now().hour
-                LUNCH_ZONE = (11, 13)
+                LUNCH_ZONE_HOURS = (11, 13)
                 conf_thresh = 0.85
                 
-                if pair in MAJORS_FIX_LIST and LUNCH_ZONE[0] <= hour_utc < LUNCH_ZONE[1]:
+                if pair in MAJORS_FIX_LIST and LUNCH_ZONE_HOURS[0] <= hour_utc < LUNCH_ZONE_HOURS[1]:
                     conf_thresh = 0.90
                     pair_warnings.append("LUNCH ZONE Penalty")
                     logger.info(f"  {pair} | LUNCH ZONE: Increasing confidence threshold to 0.90")
@@ -258,9 +269,9 @@ def main():
         for pair, info in tracked_trades.items():
             if pair not in ["CL=F", "GC=F"]:
                 continue
-            entry_time = datetime.fromisoformat(info['entry_time'])
+            entry_time_dt = datetime.fromisoformat(info['entry_time'])
             limit_hours = 8 if pair == "GC=F" else 4
-            if datetime.now() - entry_time > timedelta(hours=limit_hours):
+            if datetime.now() - entry_time_dt > timedelta(hours=limit_hours):
                 logger.warning(f"!!! WAR-TIME TIME EXIT: {pair} has been open for > {limit_hours} hours. !!!")
                 if pair not in exits:
                     exits.append(pair)

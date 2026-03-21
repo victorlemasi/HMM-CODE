@@ -35,7 +35,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # ── Constants ────────────────────────────────────────────────────────────────
-N_FEATURES = 6  # MUST match hmm_analysis.py — do not change independently
+N_FEATURES = 7  # MUST match hmm_analysis.py — do not change independently
 
 
 def prepare_features(df: pd.DataFrame, ticker: str, macro_data: dict) -> np.ndarray | None:
@@ -64,11 +64,21 @@ def train_single_ticker(ticker, price_data, macro_data):
         return False, ticker, f"Feature count mismatch: got {features.shape[1]}, expected {N_FEATURES}"
 
     try:
+        from sklearn.mixture import GaussianMixture
         scaler = StandardScaler()
         features_scaled = scaler.fit_transform(features)
 
         n_components = ASSET_N_COMPONENTS.get(ticker, ASSET_N_COMPONENTS.get('DEFAULT', 3))
 
+        # 1. Warm-start with GMM to get elliptical cluster priors
+        gmm = GaussianMixture(
+            n_components=n_components, 
+            covariance_type="diag", 
+            random_state=42,
+            max_iter=50
+        ).fit(features_scaled)
+
+        # 2. Build HMM with GMM initializations
         model = GaussianHMM(
             n_components=n_components,
             covariance_type="diag",
@@ -77,9 +87,14 @@ def train_single_ticker(ticker, price_data, macro_data):
             random_state=42,
             covars_prior=HMM_COVARS_PRIOR,
             min_covar=HMM_MIN_COVAR,
-            init_params="stmc",
+            init_params="st", # Only init startprob and transmat automatically
             params="stmc",
         )
+        
+        # Inject GMM parameters
+        model.means_ = gmm.means_
+        model.covars_ = gmm.covariances_
+        
         model.fit(features_scaled)
 
         # Validate — reject degenerate models

@@ -106,90 +106,78 @@ def calculate_bb_width(df, period=20):
 def prepare_hmm_features(df: pd.DataFrame, ticker: str, macro_data: dict) -> np.ndarray | None:
     """
     Canonical feature engineering for HMM. 
-    Maintains exactly 6 features in a fixed order for model compatibility.
+    Maintains exactly 7 features in a fixed order for model compatibility.
     """
     df = df.copy()
     
     # 1. Base Features
     df['Returns'] = np.log(df['Close'] / df['Close'].shift(1))
-    df['Range'] = (df['High'] - df['Low']) / df['Close']
+    df['Range'] = (df['High'] - df['Low']) / (df['Close'] + 1e-9)
     df['Volatility'] = df['Returns'].rolling(window=10).std()
     df['Momentum'] = df['Returns'].rolling(window=5).mean() - df['Returns'].rolling(window=20).mean()
     df['RSI'] = calculate_rsi(df['Close'])
     df['Spec_Feat'] = 0.0 # Default padding
+    df['Yield_Spread'] = 0.0 # New 7th Pillar
     
-    features_cols = ['Returns', 'Volatility', 'Range', 'Momentum', 'RSI', 'Spec_Feat']
+    # 2. Local-Normalization Helper (safe for timezones/units)
+    def _norm(frame):
+        idx = pd.to_datetime(frame.index)
+        if idx.tzinfo is not None: idx = idx.tz_localize(None)
+        if hasattr(idx, 'as_unit'): idx = idx.as_unit('ns')
+        frame = frame.copy(); frame.index = idx
+        return frame
+
+    df = _norm(df)
+    price_idx = df.index
     
-    # 2. Asset-Specific Macro Enrichment
+    # 3. Macro Enrichment
     if ticker in ASSET_MAPPINGS and macro_data:
         mapping = ASSET_MAPPINGS[ticker]
         m_type = mapping['type']
         
-        # Normalize index for safe reindexing (fixes timezone/ns issues)
-        def _norm(frame):
-            idx = pd.to_datetime(frame.index)
-            if idx.tzinfo is not None: idx = idx.tz_localize(None)
-            if hasattr(idx, 'as_unit'): idx = idx.as_unit('ns')
-            frame = frame.copy(); frame.index = idx
-            return frame
-
-        df = _norm(df)
-        price_idx = df.index
-        
         try:
-            if m_type == 'commodity':
-                com_ticker = COMMODITY_TICKERS.get(mapping.get('key'))
+            # A. Specialty Feature (Commodity/DXY Correlations)
+            if m_type in ['commodity', 'commodity_inverse', 'macro']:
+                key = mapping.get('key') or ('OIL' if 'JPY' not in ticker else 'DXY')
+                com_ticker = COMMODITY_TICKERS.get(key) or YIELD_TICKERS.get(key)
                 if com_ticker in macro_data and not macro_data[com_ticker].empty:
                     com_df = _norm(macro_data[com_ticker]).reindex(price_idx, method='ffill').bfill()
                     com_ret = np.log(com_df['Close'] / com_df['Close'].shift(1))
                     df['Spec_Feat'] = com_ret.rolling(20).corr(df['Returns']).fillna(0)
             
-            elif m_type == 'yield':
-                yield_ticker = YIELD_TICKERS.get(mapping.get('key'))
-                if yield_ticker in macro_data and not macro_data[yield_ticker].empty:
-                    y_df = _norm(macro_data[yield_ticker]).reindex(price_idx, method='ffill').bfill()
-                    df['Spec_Feat'] = y_df['Close'].fillna(0)
-
-            elif m_type == 'macro':
-                base_t = YIELD_TICKERS.get(mapping['base']) or FRED_TICKERS.get(mapping['base'])
-                quote_t = YIELD_TICKERS.get(mapping['quote']) or FRED_TICKERS.get(mapping['quote'])
-                if base_t in macro_data and quote_t in macro_data:
-                    base_a = _norm(macro_data[base_t]).reindex(price_idx, method='ffill').bfill()
-                    quote_a = _norm(macro_data[quote_t]).reindex(price_idx, method='ffill').bfill()
-                    
-                    # Yield ROC of 2s10s spread (High info content)
-                    is_eur = ticker.startswith("EUR")
-                    two_y_t = FRED_2Y_TICKERS.get('GER2Y' if is_eur else 'UK2Y')
-                    if two_y_t in macro_data and not macro_data[two_y_t].empty:
-                        two_y_a = _norm(macro_data[two_y_t]).reindex(price_idx, method='ffill').bfill()
-                        spread_2s10s = base_a['Close'] - two_y_a['Close']
-                        df['Spec_Feat'] = spread_2s10s.diff(5).fillna(0)
-                    else:
-                        df['Spec_Feat'] = (base_a['Close'] - quote_a['Close']).fillna(0)
+            # B. Yield Spread Feature (7th Pillar - Momentum of US vs Local yield)
+            base_yield = mapping.get('base')
+            quote_yield = mapping.get('quote')
             
-            elif m_type == 'commodity_inverse':
-                dxy_t = YIELD_TICKERS.get('DXY')
-                if dxy_t in macro_data and not macro_data[dxy_t].empty:
-                    dxy_a = _norm(macro_data[dxy_t]).reindex(price_idx, method='ffill').bfill()
-                    df['Spec_Feat'] = dxy_a['Close'].rolling(20).corr(df['Returns']).fillna(0)
-        except Exception:
-            pass # Fall back to 0.0 padding for Spec_Feat on error
+            if base_yield and quote_yield and macro_data:
+                b_ticker = FRED_TICKERS.get(base_yield)
+                q_ticker = FRED_TICKERS.get(quote_yield)
+                
+                if b_ticker in macro_data and q_ticker in macro_data:
+                    b_df = _norm(macro_data[b_ticker]).reindex(price_idx, method='ffill').bfill()
+                    q_df = _norm(macro_data[q_ticker]).reindex(price_idx, method='ffill').bfill()
+                    # Calculate spread momentum over 5 hours
+                    spread = b_df['Close'] - q_df['Close']
+                    df['Yield_Spread'] = (spread - spread.shift(5)).fillna(0)
+        except Exception as e:
+            logging.debug(f"Feature enrichment failed for {ticker}: {e}")
 
-    # 3. Finalization
+    # 4. Finalization
+    features_cols = ['Returns', 'Volatility', 'Range', 'Momentum', 'RSI', 'Spec_Feat', 'Yield_Spread']
     for col in features_cols:
         df[col] = df[col].ffill().bfill().fillna(0)
         
     df = df.dropna(subset=features_cols)
     
-    # 4. "Goldilocks" Window
+    # "Goldilocks" Window for live fit
     max_fit_bars = 1200
     if len(df) > max_fit_bars:
         df = df.iloc[-max_fit_bars:]
         
-    if df.empty:
+    if df.empty or len(df) < 50:
         return None
         
-    return df[features_cols].values # Fixed order as defined in features_cols
+    return df[features_cols].values # Fixed order
 
 def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: Optional[Dict[str, Any]] = None, model=None):
     """
@@ -311,11 +299,28 @@ def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: 
     # 4. Final Direction and Prob
     avg_ret = state_metrics[current_state_id]['ret']
     direction = "LONG" if avg_ret > 0 else "SHORT"
+    
+    # ENTROPY GATE: If top probability is < 0.70, the signal is ambiguous "Chop"
+    state_probs = hmm_model.predict_proba(features_scaled)
+    current_prob = float(state_probs[-1, current_state_id])
+    
+    if current_prob < 0.70:
+        regime = "Consolidation"
+        direction = "None"
+        # We'll log the veto later in the display logic if needed
+        
+    # AUD-SPECIFIC CHOP FILTER
+    if ticker is not None and 'AUD' in ticker:
+        atr_series = calculate_atr(df)
+        current_atr = atr_series.iloc[-1]
+        rolling_atr = atr_series.rolling(40).mean().iloc[-1]
+        if current_atr > 1.4 * rolling_atr:
+            regime = "Consolidation"
+            direction = "None"
+
     if regime == "Consolidation": direction = "None"
     
     is_breakout = (regime == "Trend Breakout")
-    state_probs = hmm_model.predict_proba(features_scaled)
-    current_prob = float(state_probs[-1, current_state_id])
     current_atr = float(calculate_atr(df).iloc[-1])
     
     return regime, current_prob, direction, is_breakout, current_state_id, current_atr
