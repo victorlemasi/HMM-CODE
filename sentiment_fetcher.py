@@ -23,7 +23,8 @@ def get_macro_headlines(query: str = "Federal Reserve OR ECB OR interest rates O
         "q": query,
         "api_key": SERPAPI_KEY,
         "hl": "en",
-        "gl": "us"
+        "gl": "us",
+        "tbs": "qdr:h6" # Only results from the last 6 hours
     }
     
     try:
