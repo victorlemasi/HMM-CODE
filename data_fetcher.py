@@ -143,6 +143,33 @@ def fetch_watchdog_data(tickers: List[str]) -> Dict[str, pd.DataFrame]:
     """
     return fetch_data(tickers, interval='1m', period='1d')
 
+def fetch_micro_cvd_data(ticker: str) -> pd.DataFrame:
+    """
+    Fetches the maximum allowed 1-minute data from Yahoo Finance (last 7 days).
+    Used to calculate the High-Frequency Limit Order absorption proxy.
+    """
+    import logging
+    logger = logging.getLogger('yfinance')
+    logger.disabled = True
+    
+    df = pd.DataFrame()
+    for attempt in range(3):
+        try:
+            import os, contextlib
+            with open(os.devnull, 'w') as devnull:
+                with contextlib.redirect_stderr(devnull):
+                    df = yf.download(ticker, interval='1m', period='7d', progress=False)
+            if not df.empty:
+                if isinstance(df.columns, pd.MultiIndex):
+                    df.columns = df.columns.get_level_values(0)
+                break
+        except Exception:
+            pass
+        if attempt < 2:
+            time.sleep(1)
+            
+    return df
+
 if __name__ == "__main__":
     test_data = fetch_data()
     if test_data:

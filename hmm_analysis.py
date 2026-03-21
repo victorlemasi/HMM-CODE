@@ -340,21 +340,19 @@ def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: 
             regime = "Consolidation"
             direction = "None"
 
-    # SYNTHETIC CVD DIVERGENCE GATE
+    # HIGH-FREQUENCY MICRO-CVD DIVERGENCE GATE
     if regime == "Trend Breakout":
-        cvd_series = calculate_synthetic_cvd(df, window=20)
-        # Check if we have volume data by making sure CVD isn't just 0.0 everywhere
-        if len(cvd_series) >= 4 and pd.notna(cvd_series.iloc[-1]) and cvd_series.iloc[-1] != 0:
-            cvd_slope = cvd_series.iloc[-1] - cvd_series.iloc[-4] # 3-hour slope
-            
-            # Veto LONG if CVD shows massive selling
-            if direction == "LONG" and cvd_slope < 0:
-                regime = "Consolidation"
-                direction = "None"
-            # Veto SHORT if CVD shows massive buying
-            elif direction == "SHORT" and cvd_slope > 0:
-                regime = "Consolidation"
-                direction = "None"
+        from micro_cvd_engine import get_micro_cvd_slope
+        cvd_slope = get_micro_cvd_slope(ticker)
+        
+        # Veto LONG if 1M Micro-CVD shows massive selling (slope < 0 indicates limit sellers trapping buyers)
+        if direction == "LONG" and cvd_slope < -0.01:
+            regime = "Consolidation"
+            direction = "None"
+        # Veto SHORT if 1M Micro-CVD shows massive buying (slope > 0 indicates limit buyers trapping sellers)
+        elif direction == "SHORT" and cvd_slope > 0.01:
+            regime = "Consolidation"
+            direction = "None"
 
     if regime == "Consolidation": direction = "None"
     

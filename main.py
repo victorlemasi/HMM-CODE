@@ -174,6 +174,39 @@ def main():
                 macro_weights[pair] = f"{macro_weight:.2f}x" # Save the Gravity Curve multiplier for the CSV
                 adjusted_prob = prob * macro_weight
                 
+                # --- PHASE 4: REAL-TIME NLP SENTIMENT (SerpApi + FinBERT) ---
+                if direction in ["LONG", "SHORT"] and regime == "Trend Breakout":
+                    from sentiment_fetcher import get_realtime_sentiment_modifier
+                    nlp_mult = get_realtime_sentiment_modifier(pair)
+                    if nlp_mult != 1.0:
+                        logger.info(f"  {pair} | NLP Sentiment Mod: {nlp_mult:.2f}x")
+                        adjusted_prob *= nlp_mult
+                        
+                # --- PHASE 5: HYBRID AI ENSEMBLING (XGBoost) ---
+                # Pass the core HMM outputs through the massive XGBoost decision tree
+                if regime == "Trend Breakout" and direction in ["LONG", "SHORT"]:
+                    import os, joblib
+                    xgb_path = "xgb_breakout_filter.pkl"
+                    if os.path.exists(xgb_path):
+                        try:
+                            xgb_model = joblib.load(xgb_path)
+                            atr_norm = current_atr / current_price
+                            # Features must exactly match generate_xgboost_dataset.py
+                            X_live = pd.DataFrame([{
+                                'state_id': state_id,
+                                'hmm_confidence': prob,
+                                'atr_normalized': atr_norm
+                            }])
+                            xgb_pred = xgb_model.predict(X_live)[0]
+                            
+                            if xgb_pred == 0:
+                                logger.info(f"  [XGBOOST VETO] {pair} Signal Blocked. AI Ensemble classifies this as a liquidity trap.")
+                                regime = "Consolidation"
+                                direction = "None"
+                                pair_warnings.append("XGBoost Veto")
+                        except Exception as e:
+                            logger.error(f"  [XGBOOST ERROR] Failed to run ensemble filter: {e}")
+                
                 # --- LUNCH ZONE FILTER (London Lunch / NY Pre-Open) ---
                 hour_utc = datetime.now().hour
                 LUNCH_ZONE_HOURS = (11, 13)
@@ -272,8 +305,11 @@ def main():
         if "Caution" in sent_recom:
             logger.info(f"ALERT: Sentiment {sent_class} suggests cautious positioning.")
 
-        # Diversification & Hedging — use updated regime names
-        diversified = diversify_signals(summary[summary['Regime'] == 'Trend Breakout'])
+        # Diversification & Portfolio Optimization
+        active_positions = list(new_tracker.keys())
+        from rebalancer import optimize_portfolio_weights, get_exit_recommendations, find_correlation_hedges
+        optimal_weights = optimize_portfolio_weights(active_positions, returns_df)
+        
         exits = get_exit_recommendations(summary)
         
         # --- WAR-TIME TIME EXITS (Audit Sync) ---
@@ -322,11 +358,12 @@ def main():
         else:
             logger.info("None.")
 
-        logger.info("Diversified Picks (Max One Per Cluster)")
-        if not diversified.empty:
-            print(diversified[['Cluster', 'Direction']])
+        logger.info("Markowitz Optimal Portfolio Weights (Active Positions)")
+        if optimal_weights:
+            for ast, weight in optimal_weights.items():
+                logger.info(f"  {ast}: {weight*100:.1f}%")
         else:
-            logger.info("No breakout signals for new entry..")
+            logger.info("No active positions to optimize.")
             
         logger.info("Market Neutral Correlation Hedges")
         if hedges:
