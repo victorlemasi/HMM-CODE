@@ -114,9 +114,8 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None
             adjusted_prob = prob * macro_weight
             
             # --- XGBOOST VETO (Institutional AI Filter) ---
-            if xgb_model is not None and regime in ('Trend Breakout', 'Mean Reversion'):
+            if xgb_model is not None:
                 # Features: state_id, hmm_confidence, atr_normalized
-                # IMPORTANT: Columns must match the training matrix: [state_id, hmm_confidence, atr_normalized]
                 xgb_features = pd.DataFrame([{
                     'state_id': state_id,
                     'hmm_confidence': prob,
@@ -126,9 +125,15 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None
                 # Predict (1 = Allow, 0 = Veto)
                 xgb_prediction = xgb_model.predict(xgb_features)[0]
                 if xgb_prediction == 0:
-                    print(f"      [XGB VETO] {symbol} {regime} Rejected by AI Layer.")
                     desired = 0
-            # --- LULL PENALTY (Efficiency Equilibrium) ---
+                else:
+                    # Valid signal
+                    desired = 1 if direction_hmm == 'LONG' else -1
+            else:
+                # Valid signal (No XGB available)
+                desired = 1 if direction_hmm == 'LONG' else -1
+
+            # --- LULL PENALTY & CONFIDENCE VETO ---
             current_dt = df.index[t]
             hour = current_dt.hour
             is_major = symbol in MAJORS_FIX_LIST
@@ -139,12 +144,6 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None
             
             if adjusted_prob < conf_thresh:
                 desired = 0
-            else:
-                # --- APPLY THE FUNDAMENTAL BOUNCER (Global Gatekeeper) ---
-                macro_bias = check_fundamental_gatekeeper(symbol, df.index[t], macro_data)
-                desired = 1 if direction_hmm == 'LONG' else -1
-                if desired != 0:
-                    print(f"      [SIGNAL] {symbol} {direction_hmm} | Conf: {adjusted_prob:.2f} | Kelly Size: {kelly:.1f}x")
         
         # --- SIMULATED WATCHDOG (Audit Sync) ---
         if symbol in WATCHDOG_TICKERS and desired != 0:
