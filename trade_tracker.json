@@ -1,26 +1,26 @@
 {
     "USDCAD=X": {
         "entry_price": 1.3723000288009644,
-        "entry_time": "2026-03-21T15:31:05.140489",
+        "entry_time": "2026-03-21T16:11:32.589322",
         "tp": 1.3702343021120345,
         "sl": 1.3764314821788244,
         "direction": "SHORT",
-        "bars_active": 2
+        "bars_active": 0
     },
     "EURNZD=X": {
         "entry_price": 1.9821100234985352,
-        "entry_time": "2026-03-21T15:31:05.894547",
+        "entry_time": "2026-03-21T16:11:33.579524",
         "tp": 1.9881014653614588,
         "sl": 1.9791143025670732,
         "direction": "LONG",
-        "bars_active": 2
+        "bars_active": 0
     },
     "GBPAUD=X": {
         "entry_price": 1.8996399641036987,
-        "entry_time": "2026-03-21T15:31:05.962265",
+        "entry_time": "2026-03-21T16:11:33.676226",
         "tp": 1.902589270046779,
         "sl": 1.893741352217538,
         "direction": "LONG",
-        "bars_active": 2
+        "bars_active": 0
     }
 }

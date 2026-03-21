@@ -300,21 +300,30 @@ def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: 
     avg_ret = state_metrics[current_state_id]['ret']
     direction = "LONG" if avg_ret > 0 else "SHORT"
     
-    # ENTROPY GATE: If top probability is < 0.70, the signal is ambiguous "Chop"
+    # ENTROPY GATE: Dynamic threshold for hyper-volatile crosses
     state_probs = hmm_model.predict_proba(features_scaled)
     current_prob = float(state_probs[-1, current_state_id])
     
-    if current_prob < 0.70:
+    entropy_threshold = 0.85 if ticker in ['EURNZD=X', 'GBPAUD=X'] else 0.70
+    if current_prob < entropy_threshold:
         regime = "Consolidation"
         direction = "None"
         # We'll log the veto later in the display logic if needed
         
-    # AUD-SPECIFIC CHOP FILTER
-    if ticker is not None and 'AUD' in ticker:
+    # OCEANIC CHOP FILTER (AUD & NZD)
+    if ticker and isinstance(ticker, str) and ('AUD' in ticker or 'NZD' in ticker):
         atr_series = calculate_atr(df)
         current_atr = atr_series.iloc[-1]
         rolling_atr = atr_series.rolling(40).mean().iloc[-1]
         if current_atr > 1.4 * rolling_atr:
+            regime = "Consolidation"
+            direction = "None"
+
+    # COMMODITY LIQUIDITY GATE (Time-of-Day)
+    if ticker in ['GC=F', 'CL=F']:
+        current_hour = df.index[-1].hour
+        # Allow breakouts only between 07:00 and 17:00 UTC (London/NY)
+        if current_hour < 7 or current_hour > 17:
             regime = "Consolidation"
             direction = "None"
 
