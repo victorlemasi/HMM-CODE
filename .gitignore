@@ -5,12 +5,13 @@ __pycache__/
 .env
 
 # Data and Logs
-*.csv
 *.log
-*.json
-*.png
 !README.md
 !requirements.txt
 !.env.example
 !backtest_results.csv
+!backtest_trade_log.csv
+!xgboost_training_matrix.csv
+!analysis_summary.csv
+!trade_tracker.json
 !audit_report.md
