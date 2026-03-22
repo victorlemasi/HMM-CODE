@@ -21,7 +21,7 @@ N_CLUSTERS = 4
 # HMM settings
 HMM_COMPONENTS = 3  # Consolidation, Mean Reversion, Trend Breakout
 HMM_N_ITER = 1000   # Reset to 1000 now that covar floor is lowered
-HMM_FINE_TUNE_ITER_FX = 0 # Baseline stability for FX
+HMM_FINE_TUNE_ITER_FX = 15 # Baseline stability for FX
 HMM_FINE_TUNE_ITER_COMM = 10 # Adaptability for Commodities
 HMM_COVARS_PRIOR = 1e-2
 HMM_MIN_COVAR = 1e-2
@@ -154,7 +154,7 @@ ASSET_N_COMPONENTS = {
 
 # TIGHTENED THRESHOLDS for v5.8 precision
 MAJORS_MIN_CONFIDENCE = 0.70 
-MINORS_MIN_CONFIDENCE = 0.70 
+MINORS_MIN_CONFIDENCE = 0.78 # Raised from 0.70 for v7.1 precision
 HMM_STATE_DELTA_THRESHOLD = 0.20 # Min gap between best and second-best state
 ATR_VOL_CEILING = 1.30        # Max ATR expansion factor over rolling mean
 MAJORS_FIX_LIST = ['EURUSD=X', 'GBPUSD=X']

@@ -460,7 +460,7 @@ def get_dynamic_exit_levels(regime, price, atr, direction, ticker=None, is_scalp
         tp_dist = atr * 999.0 
         
         # Initial SL needs room to breathe before the Chandelier pulls it up
-        sl_dist = atr * ATR_SL_MULTIPLIER
+        sl_dist = atr * 1.8
     else:
         return None, None
 
