@@ -302,6 +302,9 @@ def main():
                 logger.error(f"Error analyzing {pair}: {e}")
                 regime_results[pair] = "Error"
                 breakout_directions[pair] = "None"
+                warnings_dict[pair] = f"Analysis Error: {str(e)}"
+                macro_statuses[pair] = "Error"
+                macro_weights[pair] = "1.00x"
         
         summary = pd.DataFrame.from_dict(regime_results, orient='index', columns=['Regime'])
         summary['Direction'] = pd.Series(breakout_directions)

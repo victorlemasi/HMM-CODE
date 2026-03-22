@@ -7,6 +7,7 @@ from typing import Optional, Dict, Any, Union
 import logging
 import os
 import pickle
+import copy
 logging.getLogger("hmmlearn").setLevel(logging.ERROR)
 from config import (
     HMM_COMPONENTS, ASSET_MAPPINGS, COMMODITY_TICKERS, YIELD_TICKERS, FRED_TICKERS,
@@ -272,7 +273,7 @@ def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: 
             n_fine_tune = HMM_FINE_TUNE_ITER_COMM if is_comm else HMM_FINE_TUNE_ITER_FX
             
             # Store a backup of the original model in case fine-tuning fails
-            pretrained_backup = model_data['model']
+            pretrained_backup = copy.deepcopy(model_data['model'])
 
             if n_fine_tune > 0:
                 # Local adaptation via Baum-Welch
@@ -281,7 +282,9 @@ def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: 
                 hmm_model.fit(features_scaled)
 
                 # STABILITY GUARD: revert to base if NaNs detected post-fit
-                if np.isnan(hmm_model.transmat_).any() or np.isnan(hmm_model.means_).any():
+                if (np.isnan(hmm_model.transmat_).any() or 
+                    np.isnan(hmm_model.means_).any() or 
+                    np.isnan(hmm_model.startprob_).any()):
                     print(f"      [HMM WARNING] {ticker} fine-tuning produced NaNs. Reverting to base model.")
                     hmm_model = pretrained_backup
             else:
