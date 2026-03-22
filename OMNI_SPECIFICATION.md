@@ -21,9 +21,23 @@ The system is built to balance the T480s’s thermal limits with the need for hi
     - **CVD Calculation**: Computes the "Synthetic" volume delta using the formula: $Volume \times \frac{Close - Low}{High - Low}$.
 
 ### 2. The 20-Minute "HMM Adaptation" Re-fit (`main.py`)
-- **The Trigger**: Re-trains all 42 models every 4 loops (20 minutes).
-- **Baum-Welch Training**: The HMM is completely rebuilt/fine-tuned using a rolling **365-day** lookback for the best recent regime adaptation.
+- **The Trigger**: Re-trains/fine-tunes all 42 models every 4 loops (20 minutes).
+- **Transfer Learning**: The system now loads pre-trained models and performs **Intraday Fine-Tuning** (Baum-Welch) using a rolling **1200-bar** window to adapt to 2026 volatility regimes.
 - **Hardware Warning**: Ensure the T480s is on a hard surface and plugged into A/C power. Thermal throttling on battery will cause the 90-second training spike to lag into several minutes, risking "Clock Drift."
+
+---
+
+## ⚡ MODULE VI: v7.0 "ENGINE SWAP" UPGRADE (REAL-TIME PREDATION)
+
+The v7.0 upgrade focuses on leading indicators and dynamic risk scaling to prevent "Historical Drift."
+
+### 1. Leading Force & Acceleration Features
+- **Force Index (Money Flow)**: Uses the *velocity of capital* (Returns × Volume) to detect entries before the alpha is consumed.
+- **Volatility & Returns Acceleration**: Leading indicators that detect the *rate of change* in market energy, enabling earlier trend identification.
+- **Range Compression**: Detects "The Calm Before the Storm" for structural breakout prediction.
+
+### 2. Online Incremental Scaling ("The Scale Ghost")
+- **Mechanism**: Re-fits the `StandardScaler` every loop using a rolling window. This ensures the model understands current "normal" volatility, preventing false breakout entries during high-volatility regimes.
 
 ---
 
@@ -40,8 +54,8 @@ We moved away from a single "flat" HMM to a tiered intelligence system to ensure
 - **GMM Initialization**: Your system uses Gaussian Mixture Models to initialize states. This allows the HMM to model "fat-tailed" distributions (leptokurtosis), which are common in volatile pairs like $GBPCHF$ and $XAU$ (Gold).
 - **MAD Scaling**: Robust Z-scores use the **Median Absolute Deviation (MAD)** with a scale factor of $0.6745$ to ignore extreme outliers that would skew standard standard deviations.
 
-### Universal Regime Protection (v5.6 Update)
-**All 10 Shields listed below now provide universal protection.** This means that whether the system identifies a **Trend Breakout** (Momentum) or a **Mean Reversion** (Volatility Exhaustion), the signal must pass the NLP, XGBoost, and CVD filters before execution.
+### Universal Regime Protection (v7.0 Update)
+**All 10 Shields listed below provide universal protection.** This means that whether the system identifies a **Trend Breakout** (Momentum) or a **Mean Reversion** (Volatility Exhaustion), the signal must pass the NLP, XGBoost, and CVD filters before execution. The "7-Layer Gauntlet" is the core defense against institutional liquidity traps.
 
 ---
 
@@ -89,9 +103,10 @@ We moved away from a single "flat" HMM to a tiered intelligence system to ensure
 
 ## 💰 MODULE IV: CAPITAL MANAGEMENT & EXITS
 
-### 1. Dynamic Kelly Sizing
-- **Calculates optimal bet size**: `kelly_raw / 0.50` (Capped 0.1x to 2.5x).
-- **Logic**: Correlates the statistical edge to the capital allocation.
+### 1. Dynamic Risk-Parity Sizing
+- **Anti-Arrogance Logic**: If HMM Confidence is $>0.92$, the system de-risks ($0.7x$ size) to protect against trend exhaustion.
+- **Volatility Sizing**: Final size is determined by **ATR Volatility Parity** (Rolling ATR vs Current ATR), ensuring every trade risks equal "Account Intensity."
+- **Kelly Raw Scaling**: Calculates optimal bet size: `kelly_raw / 0.50` (Capped 0.1x to 2.5x).
 
 ### 2. Chandelier Exits (The "Anti-Take-Profit")
 - **Logic**: ATR-based trailing stop set at $1.5 \times ATR$ (Commodities) or $1.2 \times ATR$ (FX).
