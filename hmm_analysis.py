@@ -16,7 +16,8 @@ from config import (
     HMM_MODELS_PATH, HMM_USE_PRETRAINED, HMM_FINE_TUNE_ITER_FX, HMM_FINE_TUNE_ITER_COMM,
     ATR_SL_MULTIPLIER, MAJORS_MIN_CONFIDENCE, MINORS_MIN_CONFIDENCE,
     HMM_STATE_DELTA_THRESHOLD, ATR_VOL_CEILING, ATR_CHANDELIER_TRAIL,
-    LIQUIDITY_MAP, POLICY_RATES_2026
+    LIQUIDITY_MAP, POLICY_RATES_2026,
+    V7_DYNAMIC_SCALING, V7_ROLLING_WINDOW, V7_FORCE_LOOKBACK
 )
 from sklearn.metrics import pairwise_distances
 
@@ -137,15 +138,6 @@ def prepare_hmm_features(df: pd.DataFrame, ticker: str, macro_data: dict) -> np.
     """
     df = df.copy()
     
-    # 1. Base Features
-    df['Returns'] = np.log(df['Close'] / df['Close'].shift(1))
-    df['Range'] = (df['High'] - df['Low']) / (df['Close'] + 1e-9)
-    df['Volatility'] = df['Returns'].rolling(window=10).std()
-    df['Momentum'] = df['Returns'].rolling(window=5).mean() - df['Returns'].rolling(window=20).mean()
-    df['RSI'] = calculate_rsi(df['Close'])
-    df['Spec_Feat'] = 0.0 # Default padding
-    df['Yield_Spread'] = 0.0 # New 7th Pillar
-    
     # 2. Local-Normalization Helper (safe for timezones/units)
     def _norm(frame):
         idx = pd.to_datetime(frame.index)
@@ -154,10 +146,34 @@ def prepare_hmm_features(df: pd.DataFrame, ticker: str, macro_data: dict) -> np.
         frame = frame.copy(); frame.index = idx
         return frame
 
+    # 1. Base Leading Technicals (v7.0 Engine Swap)
+    df['Returns'] = np.log(df['Close'] / df['Close'].shift(1))
+    df['Range'] = (df['High'] - df['Low']) / (df['Close'] + 1e-9)
+    
+    # A. Volatility Acceleration (Leading)
+    vol = df['Returns'].rolling(20).std()
+    df['Volatility_Accel'] = (vol / vol.shift(5)) - 1.0 
+    
+    # B. Returns Acceleration (Leading)
+    df['Returns_Accel'] = df['Returns'] - df['Returns'].shift(1)
+    
+    # C. Force Index Proxy (Leading Money Flow)
+    if 'Volume' in df.columns and df['Volume'].sum() > 0:
+        df['Force_Index'] = df['Returns'] * df['Volume']
+    else:
+        df['Force_Index'] = df['Returns'] * (df['High'] - df['Low'])
+    
+    # D. Range Compression Factor (Leading Breakout Indicator)
+    df['Range_Comp'] = df['Range'].rolling(10).mean() / df['Range'].rolling(50).mean()
+    
+    # E. Defaults for 7-feature symmetry
+    df['Spec_Feat'] = 0.0
+    df['Yield_Spread'] = 0.0
+    
     df = _norm(df)
     price_idx = df.index
     
-    # 3. Macro Enrichment
+    # 2. Macro Enrichment (v7.0 Synchronic)
     if ticker in ASSET_MAPPINGS and macro_data:
         mapping = ASSET_MAPPINGS[ticker]
         m_type = mapping['type']
@@ -183,14 +199,13 @@ def prepare_hmm_features(df: pd.DataFrame, ticker: str, macro_data: dict) -> np.
                 if b_ticker in macro_data and q_ticker in macro_data:
                     b_df = _norm(macro_data[b_ticker]).reindex(price_idx, method='ffill').bfill()
                     q_df = _norm(macro_data[q_ticker]).reindex(price_idx, method='ffill').bfill()
-                    # Calculate spread momentum over 5 hours
                     spread = b_df['Close'] - q_df['Close']
                     df['Yield_Spread'] = (spread - spread.shift(5)).fillna(0)
         except Exception as e:
             logging.debug(f"Feature enrichment failed for {ticker}: {e}")
 
     # 4. Finalization
-    features_cols = ['Returns', 'Volatility', 'Range', 'Momentum', 'RSI', 'Spec_Feat', 'Yield_Spread']
+    features_cols = ['Returns', 'Volatility_Accel', 'Returns_Accel', 'Force_Index', 'Range_Comp', 'Spec_Feat', 'Yield_Spread']
     for col in features_cols:
         df[col] = df[col].ffill().bfill().fillna(0)
         
@@ -216,8 +231,15 @@ def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: 
     if features is None:
         return "None", 0.0, "None", False, -1, 0.0
         
-    scaler = StandardScaler()
-    features_scaled = scaler.fit_transform(features)
+    # --- v7.0 ENGINE: DYNAMIC ROLLING SCALING ---
+    if V7_DYNAMIC_SCALING:
+        scaler = StandardScaler()
+        fit_data = features[-V7_ROLLING_WINDOW:] if len(features) > V7_ROLLING_WINDOW else features
+        scaler.fit(fit_data)
+        features_scaled = scaler.transform(features)
+    else:
+        scaler = StandardScaler()
+        features_scaled = scaler.fit_transform(features)
     
     # 2. Asset-Specific HMM Selection
     hmm_model = None
@@ -399,13 +421,25 @@ def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: 
     is_breakout = (regime == "Trend Breakout")
     current_atr = float(calculate_atr(df).iloc[-1])
     
-    # DYNAMIC KELLY SIZING
-    # Kelly = W - [(1 - W) / R]. We assume a base 1.5 Risk/Reward. 
-    # Mapped so that 0.70 confidence equals a standard ~1.0 multiplier.
-    kelly_raw = current_prob - ((1 - current_prob) / 1.5)
-    kelly_multiplier = float(max(0.1, min(2.5, kelly_raw / 0.50)))
+    # --- v7.0 ENGINE: RISK-PARITY SIZING (Fix 3) ---
+    kelly_multiplier = 1.0 
     
-    return regime, current_prob, direction, is_breakout, current_state_id, current_atr, kelly_multiplier
+    # Anti-Arrogance Cap: If HMM is too certain, it's often late.
+    if current_prob > 0.92:
+        kelly_multiplier = 0.7 
+    elif current_prob > 0.80:
+        kelly_multiplier = 1.0
+    else:
+        kelly_multiplier = 0.4 
+        
+    # Volatility Sizing (Risk Parity)
+    atr_series = calculate_atr(df)
+    current_atr = float(atr_series.iloc[-1])
+    rolling_atr = float(atr_series.rolling(100).mean().iloc[-1])
+    vol_adj = rolling_atr / (current_atr + 1e-9)
+    kelly_multiplier = kelly_multiplier * min(1.5, max(0.4, vol_adj))
+    
+    return regime, current_prob, direction, is_breakout, current_state_id, current_atr, float(kelly_multiplier)
 
 def get_dynamic_exit_levels(regime, price, atr, direction, ticker=None, is_scalp=False):
     """
