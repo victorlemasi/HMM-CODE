@@ -35,7 +35,7 @@ from macro_bouncer import (
     check_fundamental_gatekeeper, get_macro_weight,
     get_yield_spread_momentum, check_macro_alignment
 )
-from config import CURRENCY_PAIRS, MAJORS_FIX_LIST, WATCHDOG_TICKERS, WATCHDOG_JUMP_THRESHOLDS, LUNCH_ZONE, MAJORS_MIN_CONFIDENCE, MINORS_MIN_CONFIDENCE
+from config import CURRENCY_PAIRS, MAJORS_FIX_LIST, WATCHDOG_TICKERS, WATCHDOG_JUMP_THRESHOLDS, LUNCH_ZONE, MAJORS_MIN_CONFIDENCE, MINORS_MIN_CONFIDENCE, ATR_CHANDELIER_TRAIL, MAJORS_TP_MULTIPLIER
 
 # ─── Configuration ─────────────────────────────────────────────────────────────
 BACKTEST_PERIOD = "6mo"          # Historical data to fetch
@@ -144,6 +144,12 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None
             
             if adjusted_prob < conf_thresh:
                 desired = 0
+                
+            # --- ALPHA-TO-COST VETO (Fix 3) ---
+            # If expected move (ATR * TP Multiplier) < 10x Cost, Veto.
+            if (current_atr * MAJORS_TP_MULTIPLIER) < (TRANSACTION_COST * 10 * df['Close'].iloc[t]):
+                desired = 0
+                if t == TRAIN_WINDOW: print(f"      [COST VETO] {symbol} Volatility too low for cost.")
         
         # --- SIMULATED WATCHDOG (Audit Sync) ---
         if symbol in WATCHDOG_TICKERS and desired != 0:
@@ -212,9 +218,9 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None
                     position = 0; entry_price = None
                     continue
 
-                # --- ATR CHANDELIER EXIT (Phase 3) ---
+                # --- ATR CHANDELIER EXIT (v6.0 Predator Mode) ---
                 if entry_regime == "Trend Breakout":
-                    trail_dist = current_atr * 1.5
+                    trail_dist = current_atr * ATR_CHANDELIER_TRAIL
                     if position == 1:
                         trail_level = high - trail_dist
                         entry_sl = max(entry_sl, trail_level)
@@ -307,7 +313,7 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None
 
 def main():
     print("=" * 60)
-    print("  HMM Regime Strategy — Walk-Forward Backtest")
+    print("  v6.0 THE HUNTER: REBORN — Walk-Forward Backtest")
     print(f"  Period: {BACKTEST_PERIOD} | Interval: {BACKTEST_INTERVAL}")
     print(f"  Train Window: {TRAIN_WINDOW} bars | Step: {STEP_SIZE} bars")
     print("=" * 60)

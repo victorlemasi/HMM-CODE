@@ -211,6 +211,19 @@ def get_macro_weight(ticker: str, direction: str, macro_data: dict) -> float:
                 # Total Score: (+) favors base currency (Pair Long), (-) favors quote
                 score = diff_factor + base_mom - quote_mom
                 
+                # --- FIX 5: Real-Time Sentiment (TLT & DXY Proxies) ---
+                if "USD" in ticker:
+                    # TLT Slope (Bonds up = yields down = USD down)
+                    tlt_df = macro_data.get('TLT')
+                    if tlt_df is not None and not tlt_df.empty and len(tlt_df) >= 5:
+                        tlt_mom = (tlt_df['Close'].iloc[-1] / tlt_df['Close'].iloc[-5]) - 1
+                        # If TLT is up, yields are down -> Bearish for USD
+                        usd_is_quote = ticker.endswith("USD=X")
+                        if tlt_mom > 0.001: # 0.1% move
+                            score += 0.1 if usd_is_quote else -0.1
+                        elif tlt_mom < -0.001:
+                            score -= 0.1 if usd_is_quote else 0.1
+                
                 return 1.0 + (score if direction == "LONG" else -score)
             
     # --- TYPE 2: Inverse Commodity (e.g., Oil vs DXY Momentum) ---

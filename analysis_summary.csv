@@ -1,6 +1,6 @@
 ,Regime,Direction,Cluster,State,Macro_Weight,Warnings
-EURUSD=X,Consolidation,None,0,Bullish Bias,1.00x,MTF Aligned (SHORT)
-GBPUSD=X,Consolidation,None,0,ALLOW,1.00x,MTF Aligned (SHORT)
+EURUSD=X,Consolidation,None,0,Bullish Bias,1.00x,MTF Aligned (SHORT) | LUNCH ZONE Penalty
+GBPUSD=X,Consolidation,None,0,ALLOW,1.00x,MTF Aligned (SHORT) | LUNCH ZONE Penalty
 AUDUSD=X,Consolidation,None,0,Bullish Bias,1.00x,MTF Aligned (LONG)
 NZDUSD=X,Consolidation,None,0,ALLOW,1.00x,MTF Aligned (SHORT)
 EURJPY=X,Consolidation,None,0,Bearish Bias,1.00x,MTF Aligned (None)
@@ -11,13 +11,13 @@ NZDJPY=X,Consolidation,None,0,Bearish Bias,1.00x,MTF Aligned (SHORT)
 CHFJPY=X,Consolidation,None,0,Bearish Bias,1.00x,MTF Aligned (None)
 AUDNZD=X,Consolidation,None,0,Bullish Bias,1.00x,MTF Aligned (None)
 GC=F,Error,None,0,ALLOW,1.00x,
-GBPCHF=X,Mean Reversion,⚠️SHORT,0,Bullish Bias,0.70x,MTF Aligned (SHORT) | NLP Sentiment: 0.82x | XGBoost AI Confirmed | Low Confidence (0.46 < 0.85)
+GBPCHF=X,Mean Reversion,⚠️SHORT,0,Bullish Bias,0.70x,MTF Aligned (SHORT) | XGBoost AI Confirmed | Low Confidence (0.56 < 0.85)
 USDJPY=X,Consolidation,None,1,Bearish Bias,1.00x,MTF Aligned (SHORT)
 USDCHF=X,Consolidation,None,1,ALLOW,1.00x,MTF Aligned (SHORT)
 USDCAD=X,Consolidation,None,1,Bearish Bias,1.30x,MTF Conflict (1D is LONG)
 EURAUD=X,Consolidation,None,1,Bearish Bias,1.00x,MTF Aligned (LONG)
+EURNZD=X,Consolidation,None,1,Bullish Bias,1.30x,MTF Aligned (LONG) | XGBoost AI Confirmed
 GBPAUD=X,Consolidation,None,1,Bullish Bias,1.30x,MTF Conflict (1D is SHORT)
 GBPNZD=X,Consolidation,None,1,Bullish Bias,1.00x,MTF Aligned (None)
 CL=F,Consolidation,None,1,ALLOW,1.00x,MTF Aligned (None)
-EURGBP=X,Mean Reversion,⚠️LONG,1,Bearish Bias,0.70x,MTF Aligned (LONG) | NLP Sentiment: 0.80x | XGBoost AI Confirmed | Low Confidence (0.56 < 0.85)
-EURNZD=X,Trend Breakout,LONG,1,Bullish Bias,1.30x,MTF Aligned (LONG) | NLP Sentiment: 0.80x | XGBoost AI Confirmed
+EURGBP=X,Mean Reversion,⚠️LONG,1,Bearish Bias,0.70x,MTF Aligned (LONG) | XGBoost AI Confirmed | Low Confidence (0.70 < 0.85)

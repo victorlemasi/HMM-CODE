@@ -15,7 +15,7 @@ from config import (
     HMM_N_ITER, HMM_COVARS_PRIOR, HMM_MIN_COVAR, FRED_2Y_TICKERS,
     HMM_MODELS_PATH, HMM_USE_PRETRAINED, HMM_FINE_TUNE_ITER_FX, HMM_FINE_TUNE_ITER_COMM,
     ATR_SL_MULTIPLIER, MAJORS_MIN_CONFIDENCE, MINORS_MIN_CONFIDENCE,
-    HMM_STATE_DELTA_THRESHOLD, ATR_VOL_CEILING
+    HMM_STATE_DELTA_THRESHOLD, ATR_VOL_CEILING, ATR_CHANDELIER_TRAIL
 )
 from sklearn.metrics import pairwise_distances
 
@@ -109,6 +109,13 @@ def calculate_mahalanobis_distance(df: pd.DataFrame, window: int = 20):
     diff = current - mean
     dist = np.sqrt(np.dot(np.dot(diff, inv_cov), diff.T))
     return float(dist)
+
+def calculate_price_z_score(df, window=20):
+    if len(df) < window: return 0.0
+    mean = df['Close'].rolling(window=window).mean().iloc[-1]
+    std = df['Close'].rolling(window=window).std().iloc[-1]
+    if std == 0: return 0.0
+    return (df['Close'].iloc[-1] - mean) / std
 
 def calculate_bb_width(df, period=20):
     sma = df['Close'].rolling(window=period).mean()
@@ -313,25 +320,42 @@ def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: 
     
     # 4. Final Direction and Prob
     avg_ret = state_metrics[current_state_id]['ret']
-    direction = "LONG" if avg_ret > 0 else "SHORT"
     
-    # --- v5.8.5 MATHEMATICAL HARDENING ---
+    # --- FIX 1: THE Z-SCORE PIVOT (Mean Reversion) ---
+    if regime == "Mean Reversion":
+        z_score = calculate_price_z_score(df, window=20)
+        if z_score > 1.5:
+            direction = "SHORT"
+        elif z_score < -1.5:
+            direction = "LONG"
+        else:
+            direction = "None"
+            regime = "Consolidation" # Demote if not extreme enough
+    else:
+        direction = "LONG" if avg_ret > 0 else "SHORT"
+    
+    # --- v6.0 MATHEMATICAL HARDENING & MOMENTUM ---
     state_probs = hmm_model.predict_proba(features_scaled)
     current_probs_vec = state_probs[-1]
     sorted_probs = sorted(current_probs_vec, reverse=True)
     state_delta = float(sorted_probs[0]) - float(sorted_probs[1])
-    
     current_prob = float(sorted_probs[0])
     
+    # Confidence Velocity (Fix 4)
+    # Compare against second-to-last bar for trend
+    prev_prob = float(sorted(state_probs[-2], reverse=True)[0]) if len(state_probs) > 1 else current_prob
+    prob_velocity = current_prob - prev_prob
+    is_accelerating = (current_prob > 0.55 and prob_velocity > 0.10)
+
     # A. ENTROPY GATE: Veto if the model is "confused" (low state delta)
     delta_thresh = HMM_STATE_DELTA_THRESHOLD
     if state_delta < delta_thresh:
         regime = "Consolidation"
         direction = "None"
         
-    # B. DYNAMIC CONFIDENCE GATE: New 0.70 Floor
+    # B. DYNAMIC CONFIDENCE GATE: Momentum-Based (Fix 4)
     entropy_threshold = 0.85 if ticker in ['EURNZD=X', 'GBPAUD=X'] else MAJORS_MIN_CONFIDENCE
-    if current_prob < entropy_threshold:
+    if current_prob < entropy_threshold and not is_accelerating:
         regime = "Consolidation"
         direction = "None"
         
