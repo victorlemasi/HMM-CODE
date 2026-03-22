@@ -313,7 +313,7 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None
 
 def main():
     print("=" * 60)
-    print("  v6.0 THE HUNTER: REBORN — Walk-Forward Backtest")
+    print("  v6.1 THE TACTICAL HUNTER — Walk-Forward Backtest")
     print(f"  Period: {BACKTEST_PERIOD} | Interval: {BACKTEST_INTERVAL}")
     print(f"  Train Window: {TRAIN_WINDOW} bars | Step: {STEP_SIZE} bars")
     print("=" * 60)

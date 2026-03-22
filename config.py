@@ -70,6 +70,25 @@ YIELD_THRESHOLD = 0.15  # Drastically widened to ignore US yield noise
 POLICY_RATE_TICKERS = {
     'USD': 'FEDFUNDS',  # Federal Reserve (reliable daily)
     'EUR': 'ECBMRRFR', # ECB Main Refinancing Operations Rate (reliable)
+    'GBP': 'CH0000000100', # UK Rate Proxy
+    'AUD': 'RBATCTR',      # Australia Cash Rate
+    'NZD': 'NZDRINTERNET', # NZ Cash Rate
+    'JPY': 'IRSTCI01JPM156N' # Japan Short-Term Rate
+}
+
+# --- v6.1 TACTICAL: FIXED RATES (2026 Calibrated) ---
+POLICY_RATES_2026 = {
+    'USD': 5.25, 'EUR': 4.00, 'GBP': 5.00, 'AUD': 4.35,
+    'NZD': 5.50, 'JPY': 0.10, 'CHF': 1.50, 'CAD': 5.00
+}
+
+# --- v6.1 TACTICAL: LIQUIDITY MAPPING (UTC) ---
+LIQUIDITY_MAP = {
+    'EURUSD=X': {'active': (7, 18), 'floor': 0.85},
+    'GBPUSD=X': {'active': (7, 18), 'floor': 0.85},
+    'USDJPY=X': {'active': (0, 9),  'floor': 0.85},
+    'AUDUSD=X': {'active': (22, 7), 'floor': 0.85},
+    'DEFAULT':  {'active': (0, 24), 'floor': 0.70}
 }
 
 

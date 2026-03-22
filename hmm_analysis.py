@@ -15,7 +15,8 @@ from config import (
     HMM_N_ITER, HMM_COVARS_PRIOR, HMM_MIN_COVAR, FRED_2Y_TICKERS,
     HMM_MODELS_PATH, HMM_USE_PRETRAINED, HMM_FINE_TUNE_ITER_FX, HMM_FINE_TUNE_ITER_COMM,
     ATR_SL_MULTIPLIER, MAJORS_MIN_CONFIDENCE, MINORS_MIN_CONFIDENCE,
-    HMM_STATE_DELTA_THRESHOLD, ATR_VOL_CEILING, ATR_CHANDELIER_TRAIL
+    HMM_STATE_DELTA_THRESHOLD, ATR_VOL_CEILING, ATR_CHANDELIER_TRAIL,
+    LIQUIDITY_MAP, POLICY_RATES_2026
 )
 from sklearn.metrics import pairwise_distances
 
@@ -109,6 +110,10 @@ def calculate_mahalanobis_distance(df: pd.DataFrame, window: int = 20):
     diff = current - mean
     dist = np.sqrt(np.dot(np.dot(diff, inv_cov), diff.T))
     return float(dist)
+
+def calculate_autocorr(series, lag=1, window=30):
+    if len(series) < window + lag: return 0.0
+    return series.tail(window).autocorr(lag=lag)
 
 def calculate_price_z_score(df, window=20):
     if len(df) < window: return 0.0
@@ -316,86 +321,78 @@ def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: 
     for rank, state_id in enumerate(sorted_states):
         labels[state_id] = regime_names[min(rank, len(regime_names) - 1)]
 
-    regime = labels[current_state_id]
-    
-    # 4. Final Direction and Prob
+    hmm_regime = labels[current_state_id]
     avg_ret = state_metrics[current_state_id]['ret']
     
-    # --- FIX 1: THE Z-SCORE PIVOT (Mean Reversion) ---
-    if regime == "Mean Reversion":
+    # --- v6.1: CARRY-SHIFTED Z-PIVOT (Fix 4) ---
+    if hmm_regime == "Mean Reversion":
         z_score = calculate_price_z_score(df, window=20)
-        if z_score > 1.5:
-            direction = "SHORT"
-        elif z_score < -1.5:
-            direction = "LONG"
-        else:
-            direction = "None"
-            regime = "Consolidation" # Demote if not extreme enough
+        base_c, quote_c = ticker[:3], ticker[3:6]
+        base_r = POLICY_RATES_2026.get(base_c, 0)
+        quote_r = POLICY_RATES_2026.get(quote_c, 0)
+        
+        # Favor the carry: join the high-yield gravity
+        upper_z = 1.2 if quote_r > (base_r + 1.0) else 1.8 
+        lower_z = -1.2 if base_r > (quote_r + 1.0) else -1.8
+        
+        if z_score > upper_z: direction, regime = "SHORT", "Mean Reversion"
+        elif z_score < lower_z: direction, regime = "LONG", "Mean Reversion"
+        else: direction, regime = "None", "Consolidation"
     else:
+        regime = hmm_regime
         direction = "LONG" if avg_ret > 0 else "SHORT"
     
-    # --- v6.0 MATHEMATICAL HARDENING & MOMENTUM ---
+    # --- v6.1 MATHEMATICAL HARDENING & SESSION FLOOR ---
     state_probs = hmm_model.predict_proba(features_scaled)
     current_probs_vec = state_probs[-1]
     sorted_probs = sorted(current_probs_vec, reverse=True)
     state_delta = float(sorted_probs[0]) - float(sorted_probs[1])
     current_prob = float(sorted_probs[0])
     
-    # Confidence Velocity (Fix 4)
-    # Compare against second-to-last bar for trend
+    # Confidence Velocity (Momentum Entry)
     prev_prob = float(sorted(state_probs[-2], reverse=True)[0]) if len(state_probs) > 1 else current_prob
     prob_velocity = current_prob - prev_prob
     is_accelerating = (current_prob > 0.55 and prob_velocity > 0.10)
 
-    # A. ENTROPY GATE: Veto if the model is "confused" (low state delta)
+    # A. ENTROPY GATE
     delta_thresh = HMM_STATE_DELTA_THRESHOLD
-    if state_delta < delta_thresh:
-        regime = "Consolidation"
-        direction = "None"
+    if state_delta < delta_thresh: regime, direction = "Consolidation", "None"
         
-    # B. DYNAMIC CONFIDENCE GATE: Momentum-Based (Fix 4)
-    entropy_threshold = 0.85 if ticker in ['EURNZD=X', 'GBPAUD=X'] else MAJORS_MIN_CONFIDENCE
+    # B. SESSION-SPECIFIC CONFIDENCE FLOOR (Fix 3)
+    current_hour = df.index[-1].hour
+    liq_cfg = LIQUIDITY_MAP.get(ticker, LIQUIDITY_MAP['DEFAULT'])
+    is_active = liq_cfg['active'][0] <= current_hour < liq_cfg['active'][1]
+    entropy_threshold = liq_cfg['floor'] if not is_active else MAJORS_MIN_CONFIDENCE
+    
+    if ticker in ['EURNZD=X', 'GBPAUD=X']: entropy_threshold = 0.85
     if current_prob < entropy_threshold and not is_accelerating:
-        regime = "Consolidation"
-        direction = "None"
-        
-    # C. ATR MOMENTUM SAFEGUARD (Volatility overkill)
+        regime, direction = "Consolidation", "None"
+
+    # C. AUTOCORR VETO (Fix 1 - Trend vs Noise)
+    if regime == "Trend Breakout":
+        rho1 = calculate_autocorr(df['Returns'], lag=1, window=30)
+        if rho1 < 0.25: regime, direction = "Consolidation", "None"
+
+    # D. ATR MOMENTUM SAFEGUARD
     atr_series = calculate_atr(df)
     current_atr = float(atr_series.iloc[-1])
     rolling_atr = float(atr_series.rolling(40).mean().iloc[-1])
-    vol_ceiling = ATR_VOL_CEILING
-    
-    if current_atr > vol_ceiling * rolling_atr:
-        regime = "Consolidation"
-        direction = "None"
+    if current_atr > ATR_VOL_CEILING * rolling_atr: regime, direction = "Consolidation", "None"
 
-    # OCEANIC CHOP FILTER (AUD & NZD Extra Precaution)
-    if ticker and isinstance(ticker, str) and ('AUD' in ticker or 'NZD' in ticker):
-        if current_atr > 1.4 * rolling_atr:
-            regime = "Consolidation"
-            direction = "None"
+    # E. PDE ABSORPTION FILTER (Fix 2)
+    if regime != "Consolidation" and 'Volume' in df.columns:
+        vol_recent = df['Volume'].tail(10).sum()
+        if vol_recent > 50: # Only if volume is non-negligible
+            price_move = abs(df['Close'].iloc[-1] / df['Close'].iloc[-10] - 1)
+            pde = (price_move * 1000) / (vol_recent + 1)
+            if pde < 0.01: regime, direction = "Consolidation", "None"
 
-    # COMMODITY LIQUIDITY GATE (Time-of-Day)
-    if ticker in ['GC=F', 'CL=F']:
-        current_hour = df.index[-1].hour
-        # Allow breakouts only between 07:00 and 17:00 UTC (London/NY)
-        if current_hour < 7 or current_hour > 17:
-            regime = "Consolidation"
-            direction = "None"
-
-    # HIGH-FREQUENCY MICRO-CVD DIVERGENCE GATE
-    if not is_backtest and regime in ["Trend Breakout", "Mean Reversion"]:
+    # F. HIGH-FREQUENCY MICRO-CVD DIVERGENCE (Live only)
+    if not is_backtest and regime != "Consolidation":
         from micro_cvd_engine import get_micro_cvd_slope
         cvd_slope = get_micro_cvd_slope(ticker)
-        
-        # Veto LONG if 1M Micro-CVD shows massive selling (slope < 0 indicates limit sellers trapping buyers)
-        if direction == "LONG" and cvd_slope < -0.01:
-            regime = "Consolidation"
-            direction = "None"
-        # Veto SHORT if 1M Micro-CVD shows massive buying (slope > 0 indicates limit buyers trapping sellers)
-        elif direction == "SHORT" and cvd_slope > 0.01:
-            regime = "Consolidation"
-            direction = "None"
+        if direction == "LONG" and cvd_slope < -0.01: regime, direction = "Consolidation", "None"
+        elif direction == "SHORT" and cvd_slope > 0.01: regime, direction = "Consolidation", "None"
 
     if regime == "Consolidation": direction = "None"
     
