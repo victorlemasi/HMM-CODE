@@ -213,7 +213,7 @@ def prepare_hmm_features(df: pd.DataFrame, ticker: str, macro_data: dict) -> np.
     df = df.dropna(subset=features_cols)
     
     # "Goldilocks" Window for live fit
-    max_fit_bars = 1200
+    max_fit_bars = 400
     if len(df) > max_fit_bars:
         df = df.iloc[-max_fit_bars:]
         
@@ -357,8 +357,9 @@ def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: 
         quote_r = POLICY_RATES_2026.get(quote_c, 0)
         
         # Favor the carry: join the high-yield gravity
-        upper_z = 1.2 if quote_r > (base_r + 1.0) else 1.8 
-        lower_z = -1.2 if base_r > (quote_r + 1.0) else -1.8
+        # Favor entry: join any deviation
+        upper_z = 0.8
+        lower_z = -0.8
         
         if z_score > upper_z: direction, regime = "SHORT", "Mean Reversion"
         elif z_score < lower_z: direction, regime = "LONG", "Mean Reversion"

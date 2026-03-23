@@ -174,16 +174,16 @@ def main():
                 macro_weights[pair] = f"{macro_weight:.2f}x" # Save the Gravity Curve multiplier for the CSV
                 adjusted_prob = prob * macro_weight
                 
-                # --- PHASE 8: MTF CONSENSUS GATE ---
-                if pair in data_daily:
-                    d_regime, d_prob, d_direction, _, _, _, _ = detect_breakout(data_daily[pair], pair, macro_data)
-                    if direction in ["LONG", "SHORT"] and direction != d_direction:
-                        logger.info(f"  [MTF VETO] {pair} {direction} conflicts with 1-Day Trend ({d_direction})")
-                        regime = "Consolidation"
-                        direction = "None"
-                        pair_warnings.append(f"MTF Conflict (1D is {d_direction})")
-                    else:
-                        pair_warnings.append(f"MTF Aligned ({d_direction})")
+                # --- PHASE 8: MTF CONSENSUS GATE (DISABLED in Unleashed Mode) ---
+                # if pair in data_daily:
+                #     d_regime, d_prob, d_direction, _, _, _, _ = detect_breakout(data_daily[pair], pair, macro_data)
+                #     if direction in ["LONG", "SHORT"] and direction != d_direction:
+                #         logger.info(f"  [MTF VETO] {pair} {direction} conflicts with 1-Day Trend ({d_direction})")
+                #         regime = "Consolidation"
+                #         direction = "None"
+                #         pair_warnings.append(f"MTF Conflict (1D is {d_direction})")
+                #     else:
+                #         pair_warnings.append(f"MTF Aligned ({d_direction})")
 
                 # --- PHASE 4: REAL-TIME NLP SENTIMENT (SerpApi + FinBERT) ---
                 if direction in ["LONG", "SHORT"] and regime in ["Trend Breakout", "Mean Reversion"]:
@@ -194,32 +194,30 @@ def main():
                         adjusted_prob *= nlp_mult
                         pair_warnings.append(f"NLP Sentiment: {nlp_mult:.2f}x")
                         
-                # --- PHASE 5: HYBRID AI ENSEMBLING (XGBoost) ---
-                # Pass the core HMM outputs through the massive XGBoost decision tree
-                if regime in ["Trend Breakout", "Mean Reversion"] and direction in ["LONG", "SHORT"]:
-                    import os, joblib
-                    xgb_path = "xgb_breakout_filter.pkl"
-                    if os.path.exists(xgb_path):
-                        try:
-                            xgb_model = joblib.load(xgb_path)
-                            atr_norm = current_atr / current_price
-                            # Features must exactly match generate_xgboost_dataset.py
-                            X_live = pd.DataFrame([{
-                                'state_id': state_id,
-                                'hmm_confidence': prob,
-                                'atr_normalized': atr_norm
-                            }])
-                            xgb_pred = xgb_model.predict(X_live)[0]
-                            
-                            if xgb_pred == 0:
-                                logger.info(f"  [XGBOOST VETO] {pair} Signal Blocked. AI Ensemble classifies this as a liquidity trap.")
-                                regime = "Consolidation"
-                                direction = "None"
-                                pair_warnings.append("XGBoost AI Veto")
-                            else:
-                                pair_warnings.append("XGBoost AI Confirmed")
-                        except Exception as e:
-                            logger.error(f"  [XGBOOST ERROR] Failed to run ensemble filter: {e}")
+                # --- PHASE 5: HYBRID AI ENSEMBLING (XGBoost) (DISABLED in Unleashed Mode) ---
+                # if regime in ["Trend Breakout", "Mean Reversion"] and direction in ["LONG", "SHORT"]:
+                #     import os, joblib
+                #     xgb_path = "xgb_breakout_filter.pkl"
+                #     if os.path.exists(xgb_path):
+                #         try:
+                #             xgb_model = joblib.load(xgb_path)
+                #             atr_norm = current_atr / current_price
+                #             X_live = pd.DataFrame([{
+                #                 'state_id': state_id,
+                #                 'hmm_confidence': prob,
+                #                 'atr_normalized': atr_norm
+                #             }])
+                #             xgb_pred = xgb_model.predict(X_live)[0]
+                #             
+                #             if xgb_pred == 0:
+                #                 logger.info(f"  [XGBOOST VETO] {pair} Signal Blocked. AI Ensemble classifies this as a liquidity trap.")
+                #                 regime = "Consolidation"
+                #                 direction = "None"
+                #                 pair_warnings.append("XGBoost AI Veto")
+                #             else:
+                #                 pair_warnings.append("XGBoost AI Confirmed")
+                #         except Exception as e:
+                #             logger.error(f"  [XGBOOST ERROR] Failed to run ensemble filter: {e}")
                 
                 # --- LUNCH ZONE FILTER (London Lunch / NY Pre-Open) ---
                 hour_utc = datetime.now().hour
