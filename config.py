@@ -93,11 +93,11 @@ V7_FORCE_LOOKBACK = 5
 
 # --- v6.1 TACTICAL: LIQUIDITY MAPPING (UTC) ---
 LIQUIDITY_MAP = {
-    'EURUSD=X': {'active': (7, 18), 'floor': 0.65},
-    'GBPUSD=X': {'active': (7, 18), 'floor': 0.65},
-    'USDJPY=X': {'active': (0, 9),  'floor': 0.65},
-    'AUDUSD=X': {'active': (22, 7), 'floor': 0.65},
-    'DEFAULT':  {'active': (0, 24), 'floor': 0.55}
+    'EURUSD=X': {'active': (7, 18), 'floor': 0.45},
+    'GBPUSD=X': {'active': (7, 18), 'floor': 0.45},
+    'USDJPY=X': {'active': (0, 9),  'floor': 0.45},
+    'AUDUSD=X': {'active': (22, 7), 'floor': 0.45},
+    'DEFAULT':  {'active': (0, 24), 'floor': 0.40}
 }
 
 
@@ -153,10 +153,10 @@ ASSET_N_COMPONENTS = {
 }
 
 # TIGHTENED THRESHOLDS for v5.8 precision
-MAJORS_MIN_CONFIDENCE = 0.55 
-MINORS_MIN_CONFIDENCE = 0.60 
-HMM_STATE_DELTA_THRESHOLD = 0.08 
-ATR_VOL_CEILING = 1.80        # Raised for more volatility tolerance
+MAJORS_MIN_CONFIDENCE = 0.45 
+MINORS_MIN_CONFIDENCE = 0.50 
+HMM_STATE_DELTA_THRESHOLD = 0.02 
+ATR_VOL_CEILING = 3.50        
 MAJORS_FIX_LIST = ['EURUSD=X', 'GBPUSD=X']
 EURUSD_FIX_LIST = ['EURUSD=X']
 CONFIRMATION_BUFFER = 0.2

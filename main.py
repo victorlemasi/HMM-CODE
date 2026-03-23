@@ -224,7 +224,7 @@ def main():
                 # --- LUNCH ZONE FILTER (London Lunch / NY Pre-Open) ---
                 hour_utc = datetime.now().hour
                 LUNCH_ZONE_HOURS = (11, 13)
-                conf_thresh = 0.65
+                conf_thresh = 0.45
                 
                 if pair in MAJORS_FIX_LIST and LUNCH_ZONE_HOURS[0] <= hour_utc < LUNCH_ZONE_HOURS[1]:
                     conf_thresh = 0.90

@@ -395,31 +395,31 @@ def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: 
     if current_prob < entropy_threshold and not is_accelerating:
         regime, direction = "Consolidation", "None"
 
-    # C. AUTOCORR VETO (Fix 1 - Trend vs Noise)
-    if regime == "Trend Breakout":
-        rho1 = calculate_autocorr(df['Returns'], lag=1, window=30)
-        if rho1 < 0.10: regime, direction = "Consolidation", "None"
+    # C. AUTOCORR VETO (DISABLED in Unleashed Mode)
+    # if regime == "Trend Breakout":
+    #     rho1 = calculate_autocorr(df['Returns'], lag=1, window=30)
+    #     if rho1 < 0.10: regime, direction = "Consolidation", "None"
 
-    # D. ATR MOMENTUM SAFEGUARD
-    atr_series = calculate_atr(df)
-    current_atr = float(atr_series.iloc[-1])
-    rolling_atr = float(atr_series.rolling(40).mean().iloc[-1])
-    if current_atr > ATR_VOL_CEILING * rolling_atr: regime, direction = "Consolidation", "None"
+    # D. ATR MOMENTUM SAFEGUARD (DISABLED in Unleashed Mode)
+    # atr_series = calculate_atr(df)
+    # current_atr = float(atr_series.iloc[-1])
+    # rolling_atr = float(atr_series.rolling(40).mean().iloc[-1])
+    # if current_atr > ATR_VOL_CEILING * rolling_atr: regime, direction = "Consolidation", "None"
 
-    # E. PDE ABSORPTION FILTER (Fix 2)
-    if regime != "Consolidation" and 'Volume' in df.columns:
-        vol_recent = df['Volume'].tail(10).sum()
-        if vol_recent > 50: # Only if volume is non-negligible
-            price_move = abs(df['Close'].iloc[-1] / df['Close'].iloc[-10] - 1)
-            pde = (price_move * 1000) / (vol_recent + 1)
-            if pde < 0.01: regime, direction = "Consolidation", "None"
+    # E. PDE ABSORPTION FILTER (DISABLED in Unleashed Mode)
+    # if regime != "Consolidation" and 'Volume' in df.columns:
+    #     vol_recent = df['Volume'].tail(10).sum()
+    #     if vol_recent > 50: 
+    #         price_move = abs(df['Close'].iloc[-1] / df['Close'].iloc[-10] - 1)
+    #         pde = (price_move * 1000) / (vol_recent + 1)
+    #         if pde < 0.01: regime, direction = "Consolidation", "None"
 
-    # F. HIGH-FREQUENCY MICRO-CVD DIVERGENCE (Live only)
-    if not is_backtest and regime != "Consolidation":
-        from micro_cvd_engine import get_micro_cvd_slope
-        cvd_slope = get_micro_cvd_slope(ticker)
-        if direction == "LONG" and cvd_slope < -0.01: regime, direction = "Consolidation", "None"
-        elif direction == "SHORT" and cvd_slope > 0.01: regime, direction = "Consolidation", "None"
+    # F. HIGH-FREQUENCY MICRO-CVD DIVERGENCE (DISABLED in Unleashed Mode)
+    # if not is_backtest and regime != "Consolidation":
+    #     from micro_cvd_engine import get_micro_cvd_slope
+    #     cvd_slope = get_micro_cvd_slope(ticker)
+    #     if direction == "LONG" and cvd_slope < -0.01: regime, direction = "Consolidation", "None"
+    #     elif direction == "SHORT" and cvd_slope > 0.01: regime, direction = "Consolidation", "None"
 
     if regime == "Consolidation": direction = "None"
     
