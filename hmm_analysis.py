@@ -398,7 +398,7 @@ def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: 
     # C. AUTOCORR VETO (Fix 1 - Trend vs Noise)
     if regime == "Trend Breakout":
         rho1 = calculate_autocorr(df['Returns'], lag=1, window=30)
-        if rho1 < 0.25: regime, direction = "Consolidation", "None"
+        if rho1 < 0.10: regime, direction = "Consolidation", "None"
 
     # D. ATR MOMENTUM SAFEGUARD
     atr_series = calculate_atr(df)
