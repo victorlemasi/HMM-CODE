@@ -387,9 +387,11 @@ def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: 
     current_hour = df.index[-1].hour
     liq_cfg = LIQUIDITY_MAP.get(ticker, LIQUIDITY_MAP['DEFAULT'])
     is_active = liq_cfg['active'][0] <= current_hour < liq_cfg['active'][1]
-    entropy_threshold = liq_cfg['floor'] if not is_active else MAJORS_MIN_CONFIDENCE
     
-    if ticker in ['EURNZD=X', 'GBPAUD=X']: entropy_threshold = 0.85
+    # Use Maj/Min specific thresholds for active periods
+    active_thresh = MAJORS_MIN_CONFIDENCE if ticker in MAJORS_FIX_LIST else MINORS_MIN_CONFIDENCE
+    entropy_threshold = liq_cfg['floor'] if not is_active else active_thresh
+    
     if current_prob < entropy_threshold and not is_accelerating:
         regime, direction = "Consolidation", "None"
 
