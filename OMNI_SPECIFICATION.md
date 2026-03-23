@@ -127,3 +127,14 @@ We moved away from a single "flat" HMM to a tiered intelligence system to ensure
 ---
 **Institutional Verification for March 2026**: 🟢 CERTIFIED  
 *EOF - THE HUNTER-QUANT OMNI-SPECIFICATION*
+Confidence Floored: All confidence requirements have been dropped to 0.40 – 0.45.
+State Delta Minimized: Reduced the HMM_STATE_DELTA_THRESHOLD to 0.02. The bot will now flag a direction even if the HMM is split nearly 50/50 between two states.
+Removed ALL Technical Vetoes: I have commented out the following safety filters in 
+hmm_analysis.py:Autocorrelation Veto: No longer checks for "noise" vs "trend."
+ATR Momentum Safeguard: No longer blocks trades during volatility spikes.
+PDE Absorption Filter: No longer blocks trades based on volume-to-price-move ratios.
+Micro-CVD Divergence: No longer checks order flow slope  Final "Unleashed" Configuration:
+Vetoes Disabled: XGBoost (AI safety filter) and MTF (Daily trend filter) are now commented out.
+Mean Reversion Loosened: The z-score requirement for Mean Reversion has been dropped to 0.8 (from 1.8), making it much more aggressive.
+HMM Window Shortened: Reduced the HMM's lookback window from 1200 to 400 bars. This forces the bot to adapt much faster to current price action instead of being "stuck" in older data.
+Confidence Floored: All systems are now set to a 0.40 – 0.45 trigger level.

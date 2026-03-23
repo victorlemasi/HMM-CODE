@@ -1,1 +1,62 @@
-{}
+{
+    "GBPUSD=X": {
+        "entry_price": 1.3286405801773071,
+        "entry_time": "2026-03-23T09:51:49.573073",
+        "tp": 1.3351467507226127,
+        "sl": 1.3253874949046545,
+        "direction": "LONG",
+        "bars_active": 0,
+        "regime": "Mean Reversion",
+        "kelly_size": 0.62
+    },
+    "USDCHF=X": {
+        "entry_price": 0.7904099822044373,
+        "entry_time": "2026-03-23T09:44:43.758513",
+        "tp": 0.7872214104448046,
+        "sl": 0.7920042680842536,
+        "direction": "SHORT",
+        "bars_active": 1,
+        "regime": "Mean Reversion",
+        "kelly_size": 0.83
+    },
+    "GBPJPY=X": {
+        "entry_price": 211.98300170898438,
+        "entry_time": "2026-03-23T09:51:56.698684",
+        "tp": -42.97484152657648,
+        "sl": 212.4423852103097,
+        "direction": "SHORT",
+        "bars_active": 0,
+        "regime": "Trend Breakout",
+        "kelly_size": 0.74
+    },
+    "GBPCHF=X": {
+        "entry_price": 1.049630045890808,
+        "entry_time": "2026-03-23T09:52:00.230484",
+        "tp": -0.1206001213618686,
+        "sl": 1.0517385687146867,
+        "direction": "SHORT",
+        "bars_active": 0,
+        "regime": "Trend Breakout",
+        "kelly_size": 0.93
+    },
+    "NZDJPY=X": {
+        "entry_price": 92.41100311279297,
+        "entry_time": "2026-03-23T09:44:51.883409",
+        "tp": -72.13909530639648,
+        "sl": 92.69781957353864,
+        "direction": "SHORT",
+        "bars_active": 1,
+        "regime": "Trend Breakout",
+        "kelly_size": 1.04
+    },
+    "GC=F": {
+        "entry_price": 4231.10009765625,
+        "entry_time": "2026-03-23T09:45:09.049780",
+        "tp": -68431.86453683036,
+        "sl": 4353.039341517857,
+        "direction": "SHORT",
+        "bars_active": 1,
+        "regime": "Trend Breakout",
+        "kelly_size": 0.34
+    }
+}
