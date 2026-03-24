@@ -388,8 +388,8 @@ def main():
         summary.to_csv('analysis_summary.csv')
         logger.info("Complete scan saved to 'analysis_summary.csv'.")
         
-        logger.info(f"Loop {loop_count} complete. Waiting 5 minutes...")
-        time.sleep(300)
+        logger.info(f"Loop {loop_count} complete. Waiting 10 minutes...")
+        time.sleep(600)
 
 if __name__ == "__main__":
     main()
