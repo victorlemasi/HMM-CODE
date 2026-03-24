@@ -282,7 +282,8 @@ def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: 
                 hmm_model.fit(features_scaled)
 
                 # STABILITY GUARD: revert to base if NaNs detected post-fit
-                if (np.isnan(hmm_model.transmat_).any() or 
+                if (not hasattr(hmm_model, 'transmat_') or 
+                    np.isnan(hmm_model.transmat_).any() or 
                     np.isnan(hmm_model.means_).any() or 
                     np.isnan(hmm_model.startprob_).any()):
                     print(f"      [HMM WARNING] {ticker} fine-tuning produced NaNs. Reverting to base model.")
@@ -308,12 +309,24 @@ def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: 
                     init_params="stmc", params="stmc"
                 )
                 hmm_model.fit(features_scaled)
-                if hasattr(hmm_model, 'transmat_'):
+                
+                # Robustness Check: Ensure model has transmat and no NaNs
+                if (hasattr(hmm_model, 'transmat_') and 
+                    not np.isnan(hmm_model.transmat_).any() and 
+                    not np.isnan(hmm_model.means_).any()):
+                    
                     row_sums = hmm_model.transmat_.sum(axis=1)
                     if not np.allclose(row_sums, 1.0):
-                        hmm_model.transmat_ = hmm_model.transmat_ / row_sums[:, np.newaxis]
-                break
-            except Exception:
+                        # Only normalize if row_sums are valid and non-zero
+                        if not np.isnan(row_sums).any() and np.all(row_sums > 0):
+                            hmm_model.transmat_ = hmm_model.transmat_ / row_sums[:, np.newaxis]
+                        else:
+                            raise ValueError("Invalid row sums in transmat")
+                    break
+                else:
+                    raise ValueError("Model produced NaNs or missing transmat")
+            except Exception as e:
+                logging.debug(f"HMM fit failed for n={n}: {e}")
                 hmm_model = None
                 continue
         
