@@ -1,53 +1,13 @@
 {
-    "USDJPY=X": {
-        "entry_price": 160.254,
-        "entry_time": "2026-03-29T14:16:06.556193",
-        "tp": 159.64478571428572,
-        "sl": 160.55860714285714,
-        "direction": "SHORT",
-        "bars_active": 2,
-        "regime": "Mean Reversion",
-        "kelly_size": 0.68
-    },
     "EURCHF=X": {
         "entry_price": 0.91843,
         "entry_time": "2026-03-29T14:21:29.567296",
         "tp": -0.07200714285714316,
         "sl": 0.9199171428571429,
         "direction": "SHORT",
-        "bars_active": 1,
+        "bars_active": 2,
         "regime": "Trend Breakout",
         "kelly_size": 0.56
-    },
-    "CHFJPY=X": {
-        "entry_price": 200.465,
-        "entry_time": "2026-03-29T14:16:11.880960",
-        "tp": 201.25442857142855,
-        "sl": 200.07028571428572,
-        "direction": "LONG",
-        "bars_active": 2,
-        "regime": "Mean Reversion",
-        "kelly_size": 0.94
-    },
-    "EURAUD=X": {
-        "entry_price": 1.67145,
-        "entry_time": "2026-03-29T14:16:16.166762",
-        "tp": -0.873145714285732,
-        "sl": 1.6752707142857144,
-        "direction": "SHORT",
-        "bars_active": 2,
-        "regime": "Trend Breakout",
-        "kelly_size": 0.81
-    },
-    "EURNZD=X": {
-        "entry_price": 2.00137,
-        "entry_time": "2026-03-29T14:16:20.017139",
-        "tp": -0.40978785714285637,
-        "sl": 2.0049903571428573,
-        "direction": "SHORT",
-        "bars_active": 2,
-        "regime": "Trend Breakout",
-        "kelly_size": 1.17
     },
     "GBPAUD=X": {
         "entry_price": 1.9271,
@@ -55,19 +15,9 @@
         "tp": 1.9361942857142858,
         "sl": 1.9225528571428572,
         "direction": "LONG",
-        "bars_active": 1,
+        "bars_active": 2,
         "regime": "Mean Reversion",
         "kelly_size": 0.76
-    },
-    "GBPNZD=X": {
-        "entry_price": 2.30503,
-        "entry_time": "2026-03-29T14:16:24.869974",
-        "tp": -0.794010714285609,
-        "sl": 2.309683214285714,
-        "direction": "SHORT",
-        "bars_active": 2,
-        "regime": "Trend Breakout",
-        "kelly_size": 0.71
     },
     "AUDNZD=X": {
         "entry_price": 1.1945999999999999,
@@ -75,8 +25,18 @@
         "tp": 1.1980671428571426,
         "sl": 1.1928664285714285,
         "direction": "LONG",
-        "bars_active": 1,
+        "bars_active": 2,
         "regime": "Mean Reversion",
         "kelly_size": 0.83
+    },
+    "CL=F": {
+        "entry_price": 3.38,
+        "entry_time": "2026-03-29T15:15:26.118220",
+        "tp": 93.28999999999992,
+        "sl": 3.218,
+        "direction": "LONG",
+        "bars_active": 0,
+        "regime": "Trend Breakout",
+        "kelly_size": 0.99
     }
 }
