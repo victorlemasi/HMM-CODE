@@ -321,6 +321,9 @@ def check_macro_alignment(ticker, direction, macro_data):
     momentum = get_yield_spread_momentum(ticker, macro_data)
     
     # Threshold check
+    if momentum == 0:
+        return "WIN_PHASE" # Allow on missing data (safety bypass)
+        
     if abs(momentum) < YIELD_THRESHOLD:
         return "TRAP_PHASE"
         

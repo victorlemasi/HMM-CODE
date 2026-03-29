@@ -63,7 +63,7 @@ FRED_TICKERS = {
 
 # Macro Filter Settings
 MAJORS_MACRO_ENABLE = True
-YIELD_THRESHOLD = 0.15  # Drastically widened to ignore US yield noise
+YIELD_THRESHOLD = 0.05  # Relaxed to allow trade flow while filtering major conflicts
 
 # Central Bank Policy Rates (FRED Tickers — only reliably accessible series)
 # Tickers that 404 or timeout are omitted; those pairs default to ALLOW for rate bias.
