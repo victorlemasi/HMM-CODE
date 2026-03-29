@@ -13,15 +13,15 @@ The v7.2 upgrade represents the "Final Bridge" between historical research and l
 ### 🧠 2. Real-Time NLP Sentiment (FinBERT + SerpApi)
 *   **Mechanism**: Integrates the **ProsusAI/FinBERT** model with Google News via SerpApi.
 *   **Recency**: News filters are now set to the **last 1 Hour** only.
-*   **Weight**: If headlines for a pair are intensely negative (e.g., "FED Hawkish Surprise"), the system applies a **0.6x - 1.5x probabilistic multiplier** to the technical entry. One-time global caching ensures high-speed execution.
+*   **Efficiency**: One-time global caching ensures the model stays in memory for the entire session.
 
 ### 📡 3. Institutional Macro Sync (OECD Standard)
 *   **Mechanism**: Transitioned all Central Bank policy trackers to the **OECD Interbank Standard (IRSTCI)** via FRED.
-*   **Fix**: Resolved the 404/Timeout issues caused by unstable secondary tickers. The bot now has a guaranteed 100% uptime feed for USD, EUR, GBP, AUD, NZD, CHF, and JPY macro rates.
+*   **Fix**: Resolved 404/Timeout issues. The bot has guaranteed 100% uptime for USD, EUR, GBP, AUD, NZD, CHF, and JPY macro feeds.
 
-### ⚖️ 4. Low-Weight MTF Consensus (Non-Binary Veto)
-*   **Mechanism**: Implemented Multi-Timeframe (1H vs 1D) consensus as a **Multiplier (0.85x)** rather than a hard Veto.
-*   **Benefit**: This allows the HMM to stay "Unleashed" during early trend-shifts while still penalizing trades that fight the higher-timeframe structural trend.
+### ⚖️ 4. Low-Weight MTF Guidance (Non-Binary Veto)
+*   **Mechanism**: Implemented Multi-Timeframe (1H vs 1D) consensus as a **Multiplier (0.95x)** rather than a hard Veto.
+*   **Decision Support**: The Daily Trend is now exported as the final column in `analysis_summary.csv` to assist in manual trade oversight.
 
 ---
 
@@ -31,27 +31,24 @@ A signal must survive the updated Veto Shield before execution:
 
 ### Layer 1: The Entropy Gate (Contextual Confidence)
 *   **Standard Floor**: $>0.55$ Confidence (Tightened from 0.45).
-*   **Status**: Active.
 
 ### Layer 2: The Binary Macro Bouncer (WIN/TRAP Phase)
 *   **Threshold**: Yield Spread Momentum $> 0.05$ (5 basis points).
-*   **Function**: Vetoes signals that occur during a "Macro Trap" (where yields are moving against the technical breakout).
+*   **Safety**: Defaults to **WIN_PHASE** if FRED connectivity is intermittent.
 
 ### Layer 3: The Jump Watchdog (Safety Valve)
 *   **Threshold**: Z-Score $> 4.5$ (Live) / $6.5$ (Backtest).
-*   **Function**: Instantly pauses trading if a 1-minute "Jump" is detected in Gold or the specific pair, protecting against slippage during news events.
+*   **Function**: Instantly pauses trading if a geopolitical "Jump" is detected.
 
 ### Layer 4: Real-Time NLP Veto (Sentiment)
 *   **Filter**: Headlines from the **last 1 Hour**.
-*   **Status**: Active.
+*   **Weight**: Penalizes or boosts confidence based on breaking news flow.
 
 ### Layer 5: MTF Consensus (Trend Gravity)
-*   **Weight**: $0.85x$ Penalty for timeframe conflict.
-*   **Status**: Active.
+*   **Weight**: **0.95x Penalty** for timeframe conflict. Does not "Kill" strong signals but filters weak ones.
 
 ### Layer 6: Alpha-to-Cost Veto (Liquidity Check)
 *   **Logic**: Expected move must be $>10x$ Transaction Cost.
-*   **Status**: Active.
 
 ### Layer 7: The Chandelier Exit (Trailing SL)
 *   **Logic**: No fixed Take Profit for Breakouts. Trades are trailed at **2.5 ATR** distance for maximum trend capture.
@@ -61,16 +58,16 @@ A signal must survive the updated Veto Shield before execution:
 ## 📂 Source Code Architecture (Quick Start)
 
 ### 1. `main.py` (The Heartbeat)
-Runs the 5-minute `heartbeat` loop. Orchestrates NLP, MTF, and execution logic. Executes via the MT5 Bridge.
+Runs the 5-minute `heartbeat` loop. Orchestrates NLP, MTF, and execution logic. Generates the `analysis_summary.csv` with **Daily_Trend** context.
 
 ### 2. `data_fetcher.py` (The Eyes)
 Handles **Zero-Lag MT5 Ticks** and Institutional FRED feeds. Synchronizes the Watchdog for multi-pair safety.
 
 ### 3. `hmm_analysis.py` (The Brain)
-Classifies market regimes (`Consolidation`, `Mean Reversion`, `Trend Breakout`) and calculates dynamic price floors (0.0001) for all exit levels.
+Classifies market regimes and calculates dynamic price floors (0.0001) for all exit levels to prevent negative order prices.
 
 ### 4. `backtest.py` (The Research Engine)
-**100% Synchronized** with the live `main.py` logic. Mirroring 400-bar Train Windows, Step Size 4, and the Binary Macro Gate for research fidelity.
+**100% Synchronized** with the live `main.py` logic. Mirroring 400-bar Train Windows and the Binary Macro Gate for research fidelity.
 
 ---
 
