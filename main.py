@@ -93,8 +93,13 @@ def main():
         
         # 0. Global Sentiment Assessment
         logger.info(f"--- Market Sentiment & Risk Assessment [Loop {loop_count}] ---")
-        gpr_val, is_gpr_spike, gpr_msg = fetch_latest_gpr(threshold_std=GPR_SPIKE_THRESHOLD)
-        logger.info(gpr_msg)
+        try:
+            gpr_val, is_gpr_spike, gpr_msg = fetch_latest_gpr(threshold_std=GPR_SPIKE_THRESHOLD)
+            logger.info(gpr_msg)
+        except Exception as e:
+            logger.warning(f" [GPR ERROR] Could not fetch geopolitical risk: {e}. Defaulting to ALLOW.")
+            is_gpr_spike = False
+            gpr_val = 0
         # 1. Fetch data
         logger.info("Currency Pair Analysis Pipeline")
         

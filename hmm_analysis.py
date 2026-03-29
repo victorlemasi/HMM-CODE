@@ -53,15 +53,18 @@ def calculate_synthetic_cvd(df, window=20):
 def calculate_z_score(series, window=100):
     """
     Robust Z-Score calculation using Median Absolute Deviation (MAD).
-    Financial returns are fat-tailed; MAD is less sensitive to the very jumps we try to detect.
     """
-    if len(series) < 2:
+    if len(series) < 50: # Require at least 50 bars for stable baseline
         return 0.0
     returns = series.pct_change().dropna()
     if returns.empty:
         return 0.0
     
-    # Use sliding window for local context
+    # --- DATA SANITY CAP (Fix 3) ---
+    # Discard entries where return is > 2.5% in 1 minute (Likely a data artifact/error)
+    if abs(returns.iloc[-1]) > 0.025:
+        return 0.0
+    
     relevant_returns = returns.tail(window)
     median = relevant_returns.median()
     mad = (relevant_returns - median).abs().median()
@@ -70,7 +73,6 @@ def calculate_z_score(series, window=100):
         return 0.0
         
     current_return = returns.iloc[-1]
-    # Robust Z-score: 0.6745 helper makes it comparable to standard Z-score for normal dist
     z_score = 0.6745 * (current_return - median) / mad
     return z_score
 

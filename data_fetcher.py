@@ -155,8 +155,8 @@ def fetch_watchdog_data(tickers: List[str]) -> Dict[str, pd.DataFrame]:
     """
     from config import DATA_SOURCE
     if DATA_SOURCE == "MT5":
-        # Pull 5 minutes of data for the jump z-score check
-        return fetch_mt5_data(tickers, interval='1m', n_bars=5)
+        # Pull 100 minutes of data for a stable MAD baseline
+        return fetch_mt5_data(tickers, interval='1m', n_bars=100)
     return fetch_data(tickers, interval='1m', period='1d')
 
 def fetch_micro_cvd_data(ticker: str) -> pd.DataFrame:
