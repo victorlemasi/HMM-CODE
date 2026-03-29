@@ -149,7 +149,6 @@ def main():
         warnings_dict = {}
         macro_statuses = {}
         macro_weights = {}
-        mtf_directions = {}
         
         for pair, df in data.items():
             try:
@@ -201,7 +200,6 @@ def main():
                 if pair in data_daily:
                     try:
                         d_regime, d_prob, d_direction, _, _, _, _ = detect_breakout(data_daily[pair], pair, macro_data)
-                        mtf_directions[pair] = d_direction
                         mtf_mult = 1.0
                         if direction in ["LONG", "SHORT"]:
                             if direction == d_direction:
@@ -341,7 +339,6 @@ def main():
         summary['State'] = pd.Series(macro_statuses)
         summary['Macro_Weight'] = pd.Series(macro_weights)
         summary['Warnings'] = pd.Series(warnings_dict)
-        summary['Daily_Trend'] = pd.Series(mtf_directions)
         
         logger.info("Risk Overlay")
         if is_gpr_spike:
