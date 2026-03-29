@@ -21,8 +21,8 @@ N_CLUSTERS = 4
 # HMM settings
 HMM_COMPONENTS = 3  # Consolidation, Mean Reversion, Trend Breakout
 HMM_N_ITER = 1000   # Reset to 1000 now that covar floor is lowered
-HMM_FINE_TUNE_ITER_FX = 15 # Baseline stability for FX
-HMM_FINE_TUNE_ITER_COMM = 10 # Adaptability for Commodities
+HMM_FINE_TUNE_ITER_FX = 30 # Increased for better convergence stability (was 15)
+HMM_FINE_TUNE_ITER_COMM = 25 # Increased for adaptability (was 10)
 HMM_COVARS_PRIOR = 1e-2
 HMM_MIN_COVAR = 1e-2
 ATR_MULTIPLIER_FX = 0.25 # Lowered for discovery (was 0.50)
@@ -68,11 +68,12 @@ YIELD_THRESHOLD = 0.15  # Drastically widened to ignore US yield noise
 # Central Bank Policy Rates (FRED Tickers — only reliably accessible series)
 # Tickers that 404 or timeout are omitted; those pairs default to ALLOW for rate bias.
 POLICY_RATE_TICKERS = {
-    'USD': 'FEDFUNDS',  # Federal Reserve (reliable daily)
-    'EUR': 'ECBMRRFR', # ECB Main Refinancing Operations Rate (reliable)
-    'GBP': 'CH0000000100', # UK Rate Proxy
-    'AUD': 'RBATCTR',      # Australia Cash Rate
-    'NZD': 'NZDRINTERNET', # NZ Cash Rate
+    'USD': 'FEDFUNDS',       # Federal Reserve (reliable daily)
+    'EUR': 'ECBMRRFR',       # ECB Main Refinancing Operations Rate (reliable)
+    'GBP': 'IRSTCI01GBM156N', # UK Bank Rate Proxy (OECD Standard)
+    'AUD': 'IRSTCI01AUM156N', # Australia Cash Rate Proxy (OECD Standard)
+    'NZD': 'IRSTCI01NZM156N', # New Zealand Cash Rate Proxy (OECD Standard)
+    'CHF': 'IRSTCI01CHM156N', # Switzerland Policy Rate Proxy (OECD Standard)
     'JPY': 'IRSTCI01JPM156N' # Japan Short-Term Rate
 }
 
@@ -153,13 +154,13 @@ ASSET_N_COMPONENTS = {
 }
 
 # TIGHTENED THRESHOLDS for v5.8 precision
-MAJORS_MIN_CONFIDENCE = 0.45 
-MINORS_MIN_CONFIDENCE = 0.50 
+MAJORS_MIN_CONFIDENCE = 0.55 
+MINORS_MIN_CONFIDENCE = 0.55 
 HMM_STATE_DELTA_THRESHOLD = 0.02 
 ATR_VOL_CEILING = 3.50        
 MAJORS_FIX_LIST = ['EURUSD=X', 'GBPUSD=X']
 EURUSD_FIX_LIST = ['EURUSD=X']
-CONFIRMATION_BUFFER = 0.2
+CONFIRMATION_BUFFER = 0.05
 MAJORS_TP_MULTIPLIER = 3.0
 ATR_SL_MULTIPLIER = 1.5
 ATR_CHANDELIER_TRAIL = 2.5
@@ -173,3 +174,36 @@ KILL_ZONES = [
     (13, 17)  # NY Open / Overlap
 ]
 LUNCH_ZONE = (11, 13) 
+# --- DATA SOURCE SETTINGS ---
+DATA_SOURCE = "MT5" 
+
+# Mapping Yahoo Tickers -> MT5 Symbols
+MT5_SYMBOL_MAP = {
+    'EURUSD=X': 'EURUSD',
+    'GBPUSD=X': 'GBPUSD',
+    'USDJPY=X': 'USDJPY',
+    'USDCHF=X': 'USDCHF',
+    'AUDUSD=X': 'AUDUSD',
+    'USDCAD=X': 'USDCAD',
+    'NZDUSD=X': 'NZDUSD',
+    'EURGBP=X': 'EURGBP',
+    'EURJPY=X': 'EURJPY',
+    'GBPJPY=X': 'GBPJPY',
+    'EURCHF=X': 'EURCHF',
+    'GBPCHF=X': 'GBPCHF',
+    'AUDJPY=X': 'AUDJPY',
+    'NZDJPY=X': 'NZDJPY',
+    'CHFJPY=X': 'CHFJPY',
+    'EURAUD=X': 'EURAUD',
+    'EURNZD=X': 'EURNZD',
+    'GBPAUD=X': 'GBPAUD',
+    'GBPNZD=X': 'GBPNZD',
+    'AUDNZD=X': 'AUDNZD',
+    'GC=F':     'XAUUSD',
+    'CL=F':     'WTI'
+}
+
+# --- MT5 ACCOUNT CREDENTIALS ---
+MT5_LOGIN = 5048601874
+MT5_PASSWORD = "YxRq!2Ga"
+MT5_SERVER = "MetaQuotes-Demo"

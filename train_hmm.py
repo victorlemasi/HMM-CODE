@@ -12,6 +12,7 @@ This script produces .pkl files that are loaded by hmm_analysis.py
 during backtesting and live execution via Transfer Learning.
 """
 import os
+import time
 import pickle
 import logging
 import warnings
@@ -28,7 +29,7 @@ from config import (
     ASSET_N_COMPONENTS, ASSET_MAPPINGS,
     COMMODITY_TICKERS, YIELD_TICKERS, FRED_TICKERS, FRED_2Y_TICKERS
 )
-from data_fetcher import fetch_data, get_macro_data
+from data_fetcher import fetch_data, get_macro_data, fetch_mt5_data
 from hmm_analysis import calculate_rsi, calculate_atr, prepare_hmm_features
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -114,17 +115,30 @@ def train_single_ticker(ticker, price_data, macro_data):
     except Exception as e:
         return False, ticker, str(e)
 
-def train_all_models():
+def train_all_models(fast_mode: bool = False):
     """
-    Main training loop: fetch 2-year history, engineer features, run Baum-Welch,
-    and save model + scaler for each asset.
+    Main training loop. 
+    Fast Mode: 400 bars for hyper-local adaptation.
+    Full Mode: 365 days for structural memory.
     """
     os.makedirs(HMM_MODELS_PATH, exist_ok=True)
-    from config import HMM_TRAIN_CORES
+    from config import HMM_TRAIN_CORES, DATA_SOURCE
     
-    logger.info(f"Fetching {HMM_TRAIN_PERIOD} of historical data for {len(CURRENCY_PAIRS)} pairs...")
-
-    price_data = fetch_data(CURRENCY_PAIRS, interval=INTERVAL, period=HMM_TRAIN_PERIOD)
+    mode_label = "FAST ADAPTATION (400 Bars)" if fast_mode else "FULL RE-FIT (365 Days)"
+    logger.info(f"🚀 [CRITICAL] STARTING HMM TRAINING CYCLE: {mode_label}...")
+    start_time = time.time()
+    
+    if DATA_SOURCE == "MT5":
+        if fast_mode:
+            n_bars = 400
+        else:
+            days = int(HMM_TRAIN_PERIOD.replace('d', '')) if 'd' in HMM_TRAIN_PERIOD else 365
+            n_bars = days * 24
+        price_data = fetch_mt5_data(CURRENCY_PAIRS, interval=INTERVAL, n_bars=n_bars)
+    else:
+        period = "20d" if fast_mode else HMM_TRAIN_PERIOD # 20 days ~480 bars
+        price_data = fetch_data(CURRENCY_PAIRS, interval=INTERVAL, period=period)
+        
     macro_data = get_macro_data(interval=INTERVAL, period=HMM_TRAIN_PERIOD)
 
     logger.info(f"Starting parallel training with {HMM_TRAIN_CORES} cores...")
@@ -148,7 +162,8 @@ def train_all_models():
             logger.warning(f"  ✗ {ticker}: {reason}")
             skipped += 1
 
-    logger.info(f"\nDone. Trained: {trained} | Skipped: {skipped}")
+    duration = time.time() - start_time
+    logger.info(f"✅ [SUCCESS] FULL RETRAINING COMPLETE. TOOK {duration:.2f}s | Trained: {trained} | Skipped: {skipped}")
 
 
 if __name__ == "__main__":

@@ -371,8 +371,8 @@ def detect_breakout(df: pd.DataFrame, ticker: Optional[str] = None, macro_data: 
         
         # Favor the carry: join the high-yield gravity
         # Favor entry: join any deviation
-        upper_z = 0.8
-        lower_z = -0.8
+        upper_z = 1.1
+        lower_z = -1.1
         
         if z_score > upper_z: direction, regime = "SHORT", "Mean Reversion"
         elif z_score < lower_z: direction, regime = "LONG", "Mean Reversion"

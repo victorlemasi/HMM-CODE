@@ -61,10 +61,55 @@ A signal must survive all 7 layers of the updated Veto Shield before execution:
 
 ---
 
-## 🛠️ Performance & Scalability
-- **Parallelization**: 8-Core Baum-Welch re-fitting via `joblib`.
-- **Latency**: 5-Minute loop (300s) optimized for hourly-to-daily trade duration.
-- **Backtest Reliability**: v7.0 verified with Drawdowns strictly $< 1.0\%$ across Major/Minor universe.
+---
+
+## 📂 How the Source Code Works (Technical Breakdown)
+
+The Hunter-Quant system is a modular, event-driven trading node. Here is how the individual components interact:
+
+### 1. `main.py` (The Heartbeat)
+The central orchestrator. It runs a 5-minute loop (`heartbeat`) on your T480s console.
+*   **Orchestration**: It triggers the data fetch, runs the macro filters, calls the HMM brain, and calculates portfolio weights.
+*   **Safety Watchdog**: Every loop, it runs a 1-minute "Jump Detection" check on Gold and Oil to pause trading if a geopolitical shock occurs.
+*   **Trade Tracker**: Manages entries, Take Profits, and Stop Losses in `trade_tracker.json` to ensure persistence across restarts.
+
+### 2. `data_fetcher.py` (The Eyes)
+Handles all inbound market information.
+*   **MT5 Bridge**: Connects directly to the MetaTrader 5 terminal to pull zero-delay institutional ticks for `XAUUSD`, `WTI`, and Forex.
+*   **Yahoo/FRED Fallback**: Pulls historical daily data for MTF (Multi-Timeframe) consensus and monthly FRED data for central bank rates.
+*   **Returns Matrix**: Converts raw price data into the logarithmic returns matrix required for HMM clustering.
+
+### 3. `hmm_analysis.py` (The Brain)
+Implements the core Unsupervised Machine Learning logic.
+*   **Gaussian HMM States**: Classifies the market into three regimes: `Consolidation` (Chop), `Mean Reversion` (Reversals), and `Trend Breakout` (Momemtum).
+*   **Warm-Start Adaptation**: Instead of using old models, it performs "Fine-Tuning" on the last 400 bars to adapt to the last hour's volatility.
+*   **Dynamic Exits**: Calculates SL and TP levels based on **ATR Multipliers** (Average True Range).
+
+### 4. `macro_bouncer.py` (The Judge)
+The fundamental filter that prevents "Technical Hallucinations."
+*   **Gravity Curve Multipliers**: It looks at the **Yield Spread Momentum** (e.g., US10Y vs GER10Y). 
+*   **Bias Weighting**: If a technical LONG signal conflicts with the yield trend, this module penalizes the confidence score (e.g., 0.7x weight). If aligned, it boosts it (1.3x).
+
+### 5. `config.py` (The Nervous System)
+The single point of truth for the entire bot.
+*   **Thresholds**: Sets the HMM confidence floors (0.55), Z-Scores (1.1), and ATR buffers.
+*   **Credentials**: Securely stores your MT5 Demo login (`5048601874`) and broker server details.
+*   **Symbol Map**: Translates Yahoo tickers to Broker symbols (e.g., `GC=F` -> `XAUUSD`).
+
+### 6. `train_hmm.py` (The Memory)
+Handles the "Heavy Lifting" of offline training. 
+*   **Baum-Welch Fitting**: Runs multi-threaded training on 1 year of historical data to create the "Base Models" stored in `hmm_models/`. 
+
+### 7. `clustering.py` & `rebalancer.py` (The Strategists)
+*   **Clustering**: Groups the 22 pairs into clusters of "Similar Movement" to avoid over-exposure to a single currency (like USD).
+*   **Markowitz Optimization**: Uses Modern Portfolio Theory to assign weights to active signals, ensuring the highest Sharpe Ratio.
 
 ---
-**March 2026 Audit Status**: 🔵 v7.0 THE ENGINE SWAP - **Structural Integrity Verified.**
+
+## 🛠️ Performance & Scalability
+- **Parallelization**: 8-Core Baum-Welch re-fitting via `joblib`.
+- **Latency**: 5-Minute loop (300s) optimized for real-time MT5 ticks.
+- **Hardware**: Optimized for Intel i5/i7 (Lenovo T480s) performance.
+
+---
+**March 2026 Audit Status**: 🟢 v7.2 UNLEASHED - **Live MT5 Integration Functional.**

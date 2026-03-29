@@ -18,14 +18,14 @@ if hasattr(sys.stdout, 'reconfigure'):
     except:
         pass
 
-from data_fetcher import fetch_data, get_returns_matrix, get_macro_data, fetch_watchdog_data
+from data_fetcher import fetch_data, get_returns_matrix, get_macro_data, fetch_watchdog_data, fetch_mt5_data
 from clustering import cluster_assets, plot_clusters
 from hmm_analysis import detect_breakout, get_dynamic_exit_levels, get_trigger_price, calculate_z_score, calculate_atr
 from config import (
     CURRENCY_PAIRS, INTERVAL, PERIOD, N_CLUSTERS, GPR_SPIKE_THRESHOLD, 
     SAFE_HAVEN_TICKER, MAJORS_FIX_LIST, MAJORS_MACRO_ENABLE, 
     ASSET_MAPPINGS, YIELD_TICKERS, FRED_TICKERS, YIELD_THRESHOLD, CONFIRMATION_BUFFER, MAJORS_TP_MULTIPLIER,
-    WATCHDOG_TICKERS
+    WATCHDOG_TICKERS, DATA_SOURCE
 )
 from gpr_fetcher import fetch_latest_gpr
 # Macro & Sentiment fetchers are imported dynamically to save memory
@@ -83,6 +83,8 @@ class JumpWatchdog:
 def main():
     watchdog = JumpWatchdog(WATCHDOG_TICKERS)
     loop_count = 0
+    import time
+    last_retrain_time = 0 # Initialize for immediate or timed first run
     
     while True:
         loop_count += 1
@@ -96,18 +98,25 @@ def main():
         # 1. Fetch data
         logger.info("Currency Pair Analysis Pipeline")
         
-        # --- INTRADAY RE-FITTING (4-Hour Window) ---
-        if loop_count % 4 == 0:
-            logger.info("      [HMM ADAPTATION] Triggering 4-hour Baum-Welch re-fitting for all assets...")
+        # --- INTRADAY RE-FITTING (20-Minute Window) ---
+        current_time_sec = time.time()
+        if (current_time_sec - last_retrain_time) > 1200: # 1200s = 20 mins
+            logger.info("🚀 [CRITICAL] STARTING HMM RETRAINING CYCLE (Periodic Adaptation)...")
             from train_hmm import train_all_models
-            train_all_models()
-            logger.info("      [HMM ADAPTATION] Re-fitting complete. All models synced to current volatility.")
+            start_train = time.time()
+            train_all_models(fast_mode=True)
+            last_retrain_time = time.time()
+            duration = last_retrain_time - start_train
+            logger.info(f"✅ [SUCCESS] RETRAINING COMPLETE. TOOK {duration:.2f}s. All models synced to current volatility.")
 
         # --- JUMP WATCHDOG CHECK ---
         if watchdog.check_for_jumps():
             logger.info("INFORMATIONAL: Trading paused due to market shock. Continuing analysis for observation.")
 
-        data = fetch_data(CURRENCY_PAIRS, INTERVAL, PERIOD)
+        if DATA_SOURCE == "MT5":
+            data = fetch_mt5_data(CURRENCY_PAIRS, INTERVAL)
+        else:
+            data = fetch_data(CURRENCY_PAIRS, INTERVAL, PERIOD)
         
         # --- PHASE 8: MTF CONSENSUS (1-Day Pulse) ---
         logger.info("Fetching Daily Data for MTF Consensus...")
@@ -171,7 +180,15 @@ def main():
                     trigger = get_trigger_price(df, regime, direction, current_atr, macro_phase=macro_phase)
                 
                 macro_weight = get_macro_weight(pair, direction, macro_data)
-                macro_weights[pair] = f"{macro_weight:.2f}x" # Save the Gravity Curve multiplier for the CSV
+                macro_weights[pair] = f"{macro_weight:.2f}x" 
+                
+                # --- VISIBILITY: EMOJI SIGNALS ---
+                if direction in ["LONG", "SHORT"]:
+                    if macro_weight < 0.95:
+                        pair_warnings.append("⚠️ AGAINST MACRO (Conflict)")
+                    elif macro_weight > 1.05:
+                        pair_warnings.append("✅ MACRO ALIGNED (Strong)")
+                        
                 adjusted_prob = prob * macro_weight
                 
                 # --- PHASE 8: MTF CONSENSUS GATE (DISABLED in Unleashed Mode) ---
@@ -388,8 +405,8 @@ def main():
         summary.to_csv('analysis_summary.csv')
         logger.info("Complete scan saved to 'analysis_summary.csv'.")
         
-        logger.info(f"Loop {loop_count} complete. Waiting 10 minutes...")
-        time.sleep(600)
+        logger.info(f"Loop {loop_count} complete. Waiting 5 minutes...")
+        time.sleep(300)
 
 if __name__ == "__main__":
     main()

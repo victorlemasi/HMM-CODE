@@ -3,6 +3,8 @@ import pandas as pd
 import time
 import requests
 import io
+import MetaTrader5 as mt5
+import numpy as np
 from typing import List, Dict
 from config import CURRENCY_PAIRS, INTERVAL, PERIOD
 
@@ -149,8 +151,12 @@ def get_returns_matrix(data: Dict[str, pd.DataFrame]) -> pd.DataFrame:
 
 def fetch_watchdog_data(tickers: List[str]) -> Dict[str, pd.DataFrame]:
     """
-    Fetches latest 1-minute data for jump detection.
+    Fetches latest 1-minute data for jump detection, respecting the data source.
     """
+    from config import DATA_SOURCE
+    if DATA_SOURCE == "MT5":
+        # Pull 5 minutes of data for the jump z-score check
+        return fetch_mt5_data(tickers, interval='1m', n_bars=5)
     return fetch_data(tickers, interval='1m', period='1d')
 
 def fetch_micro_cvd_data(ticker: str) -> pd.DataFrame:
@@ -179,6 +185,56 @@ def fetch_micro_cvd_data(ticker: str) -> pd.DataFrame:
             time.sleep(1)
             
     return df
+
+def fetch_mt5_data(tickers: List[str], interval: str, n_bars: int = 400) -> Dict[str, pd.DataFrame]:
+    """
+    Fetches real-time zero-delay data from an active MT5 terminal with automatic authentication.
+    """
+    from config import MT5_SYMBOL_MAP, MT5_LOGIN, MT5_PASSWORD, MT5_SERVER
+    
+    if not mt5.initialize():
+        print(" [MT5 ERROR] Could not initialize MT5. Ensure the software is installed.")
+        return {}
+
+    # Perform automated LOGIN to ensure the bot is on the correct account
+    if not mt5.login(MT5_LOGIN, password=MT5_PASSWORD, server=MT5_SERVER):
+        print(f" [MT5 ERROR] Login failed for account {MT5_LOGIN}. Check credentials.")
+        return {}
+
+    data = {}
+    
+    # Map timeframe string to MT5 constant
+    if interval == '1h':
+        tf = mt5.TIMEFRAME_H1
+    elif interval == '1m':
+        tf = mt5.TIMEFRAME_M1
+    else:
+        tf = mt5.TIMEFRAME_M5 # Default to M5 if not specified
+    
+    for y_ticker in tickers:
+        mt5_symbol = MT5_SYMBOL_MAP.get(y_ticker, y_ticker)
+        print(f"Fetching MT5 Live data for {mt5_symbol}...", end=" ", flush=True)
+        
+        # Pull data from the broker (0 delay)
+        rates = mt5.copy_rates_from_pos(mt5_symbol, tf, 0, n_bars)
+        
+        if rates is not None and len(rates) > 0:
+            # Convert to DataFrame and sync columns with the pipeline
+            df = pd.DataFrame(rates)
+            df['time'] = pd.to_datetime(df['time'], unit='s')
+            df.set_index('time', inplace=True)
+            
+            # Map MT5 columns to existing OHLC names
+            df = df[['open', 'high', 'low', 'close', 'tick_volume']]
+            df.columns = ['Open', 'High', 'Low', 'Close', 'Volume']
+            df['Returns'] = np.log(df['Close'] / df['Close'].shift(1))
+            
+            data[y_ticker] = df.dropna()
+            print("Done.")
+        else:
+            print(f"Failed (Check if {mt5_symbol} is visible in your MarketWatch)")
+            
+    return data
 
 if __name__ == "__main__":
     test_data = fetch_data()
