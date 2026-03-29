@@ -203,8 +203,12 @@ def main():
                         d_regime, d_prob, d_direction, _, _, _, _ = detect_breakout(data_daily[pair], pair, macro_data)
                         mtf_directions[pair] = d_direction
                         mtf_mult = 1.0
-                        if direction in ["LONG", "SHORT"] and direction != d_direction:
-                            mtf_mult = 0.95 # Ultra-low weight (5% penalty) to guide but not flip trades
+                        if direction in ["LONG", "SHORT"]:
+                            if direction == d_direction:
+                                pair_warnings.append("✅ MTF Aligned")
+                            else:
+                                mtf_mult = 0.95 # 5% penalty
+                                pair_warnings.append("⚠️ MTF Conflict")
                         
                         adjusted_prob *= mtf_mult
                     except Exception as e:
