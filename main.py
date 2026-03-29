@@ -417,6 +417,15 @@ def main():
             logger.info("No hedging opportunities found.")
         
         # Save results
+        # Support Sorting: Move Active Signals (LONG/SHORT) to the top
+        summary['Has_Signal'] = summary['Direction'].apply(lambda x: 1 if x in ['LONG', 'SHORT'] else 0)
+        
+        # Sort: Has Signal (DESC), then Regime (Alphabetical), then Index
+        summary = summary.sort_values(by=['Has_Signal', 'Regime'], ascending=[False, True])
+        
+        # Drop the temporary sorting column
+        summary = summary.drop(columns=['Has_Signal'])
+        
         summary.to_csv('analysis_summary.csv')
         logger.info("Complete scan saved to 'analysis_summary.csv'.")
         
