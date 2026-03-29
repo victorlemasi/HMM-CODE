@@ -1,11 +1,8 @@
 ,Regime,Direction,Cluster,State,Macro_Weight,Warnings
 CHFJPY=X,Mean Reversion,LONG,0,Bearish Bias,1.10x,✅ MACRO ALIGNED (Strong) | NLP Sentiment: 1.15x | ✅ MTF Aligned (LONG)
 AUDNZD=X,Mean Reversion,LONG,0,Bullish Bias,0.70x,⚠️ AGAINST MACRO (Conflict) | NLP Sentiment: 0.88x | ✅ MTF Aligned (LONG)
-USDJPY=X,Mean Reversion,SHORT,1,Bearish Bias | Bullish Bias,1.20x,✅ MACRO ALIGNED (Strong) | NLP Sentiment: 1.15x | ⚠️ MTF Conflict (Daily: None)
 GBPAUD=X,Mean Reversion,LONG,1,Bullish Bias,0.90x,⚠️ AGAINST MACRO (Conflict) | NLP Sentiment: 0.86x | ⚠️ MTF Conflict (Daily: SHORT)
-EURCHF=X,Trend Breakout,SHORT,0,Bullish Bias,1.00x,NLP Sentiment: 1.00x | ✅ MTF Aligned (SHORT)
-EURNZD=X,Trend Breakout,SHORT,1,Bullish Bias | Bearish Bias,1.20x,✅ MACRO ALIGNED (Strong) | NLP Sentiment: 1.00x | ✅ MTF Aligned (SHORT)
-GBPNZD=X,Trend Breakout,SHORT,1,Bullish Bias,1.30x,✅ MACRO ALIGNED (Strong) | NLP Sentiment: 0.86x | ✅ MTF Aligned (SHORT)
+EURCHF=X,Trend Breakout,SHORT,0,Bullish Bias,1.00x,NLP Sentiment: 1.00x
 CL=F,Trend Breakout,LONG,1,ALLOW,0.85x,⚠️ AGAINST MACRO (Conflict) | NLP Sentiment: 0.88x | ⚠️ MTF Conflict (Daily: SHORT)
 EURUSD=X,Consolidation,None,0,Bullish Bias,1.00x,
 GBPUSD=X,Consolidation,None,0,Bearish Bias,1.00x,
@@ -17,7 +14,10 @@ GBPCHF=X,Consolidation,None,0,Bullish Bias | Bullish Bias,1.00x,
 AUDJPY=X,Consolidation,None,0,Bearish Bias | Bullish Bias,1.00x,
 NZDJPY=X,Consolidation,None,0,Bearish Bias | Bullish Bias,1.00x,
 GC=F,Consolidation,None,0,ALLOW,1.00x,
-USDCHF=X,Consolidation,None,1,Bullish Bias | Bullish Bias,1.00x,
+USDJPY=X,Consolidation,None,1,Bearish Bias,1.30x,✅ MACRO ALIGNED (Strong) | NLP Sentiment: 1.15x | ⚠️ MTF Conflict (Daily: None)
+USDCHF=X,Consolidation,None,1,Bullish Bias,1.00x,
 USDCAD=X,Consolidation,None,1,ALLOW,1.00x,
 EURGBP=X,Consolidation,None,1,Bearish Bias | Bearish Bias,1.00x,
 EURAUD=X,Consolidation,None,1,Bearish Bias | Bearish Bias,1.00x,
+EURNZD=X,Consolidation,None,1,Bullish Bias | Bearish Bias,1.20x,✅ MACRO ALIGNED (Strong) | NLP Sentiment: 1.00x | ✅ MTF Aligned (SHORT)
+GBPNZD=X,Consolidation,None,1,Bullish Bias,1.30x,✅ MACRO ALIGNED (Strong) | NLP Sentiment: 0.86x | ✅ MTF Aligned (SHORT)
