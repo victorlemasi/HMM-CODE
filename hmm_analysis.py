@@ -492,7 +492,11 @@ def get_dynamic_exit_levels(regime, price, atr, direction, ticker=None, is_scalp
     else:
         return None, None
         
-    return float(tp), float(sl)
+    # --- PHYSICAL PRICE FLOOR (Fix 3) ---
+    tp = max(0.0001, float(tp))
+    sl = max(0.0001, float(sl))
+        
+    return tp, sl
 
 def get_trigger_price(df, regime, direction, atr, macro_phase="TRAP_PHASE"):
     """
