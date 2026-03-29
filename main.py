@@ -203,10 +203,10 @@ def main():
                         mtf_mult = 1.0
                         if direction in ["LONG", "SHORT"]:
                             if direction == d_direction:
-                                pair_warnings.append("✅ MTF Aligned")
+                                pair_warnings.append(f"✅ MTF Aligned ({d_direction})")
                             else:
                                 mtf_mult = 0.95 # 5% penalty
-                                pair_warnings.append("⚠️ MTF Conflict")
+                                pair_warnings.append(f"⚠️ MTF Conflict (Daily: {d_direction})")
                         
                         adjusted_prob *= mtf_mult
                     except Exception as e:
