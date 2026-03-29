@@ -144,6 +144,7 @@ def main():
         warnings_dict = {}
         macro_statuses = {}
         macro_weights = {}
+        mtf_directions = {}
         
         for pair, df in data.items():
             try:
@@ -191,13 +192,14 @@ def main():
                         
                 adjusted_prob = prob * macro_weight
                 
-                # --- PHASE 8: MTF CONSENSUS WEIGHT (Low-Weight Implementation) ---
+                # --- PHASE 8: MTF CONSENSUS WEIGHT (Ultra-Low Weight) ---
                 if pair in data_daily:
                     try:
                         d_regime, d_prob, d_direction, _, _, _, _ = detect_breakout(data_daily[pair], pair, macro_data)
+                        mtf_directions[pair] = d_direction
                         mtf_mult = 1.0
                         if direction in ["LONG", "SHORT"] and direction != d_direction:
-                            mtf_mult = 0.85 # Low-weight penalty for fighting the daily trend
+                            mtf_mult = 0.95 # Ultra-low weight (5% penalty) to guide but not flip trades
                             pair_warnings.append(f"MTF Conflict (Daily is {d_direction})")
                         else:
                             pair_warnings.append(f"MTF Aligned ({d_direction})")
@@ -205,6 +207,8 @@ def main():
                         adjusted_prob *= mtf_mult
                     except Exception as e:
                         logger.warning(f"  [MTF WARNING] Could not calculate consensus for {pair}: {e}")
+                else:
+                    mtf_directions[pair] = "Unknown"
 
                 # --- PHASE 4: REAL-TIME NLP SENTIMENT (SerpApi + FinBERT) ---
                 if direction in ["LONG", "SHORT"] and regime in ["Trend Breakout", "Mean Reversion"]:
@@ -329,6 +333,7 @@ def main():
         summary['Direction'] = pd.Series(breakout_directions)
         summary['Cluster'] = pd.Series(cluster_mapping)
         summary['State'] = pd.Series(macro_statuses)
+        summary['Daily_Trend'] = pd.Series(mtf_directions)
         summary['Macro_Weight'] = pd.Series(macro_weights)
         summary['Warnings'] = pd.Series(warnings_dict)
         
