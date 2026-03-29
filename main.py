@@ -191,16 +191,20 @@ def main():
                         
                 adjusted_prob = prob * macro_weight
                 
-                # --- PHASE 8: MTF CONSENSUS GATE (DISABLED in Unleashed Mode) ---
-                # if pair in data_daily:
-                #     d_regime, d_prob, d_direction, _, _, _, _ = detect_breakout(data_daily[pair], pair, macro_data)
-                #     if direction in ["LONG", "SHORT"] and direction != d_direction:
-                #         logger.info(f"  [MTF VETO] {pair} {direction} conflicts with 1-Day Trend ({d_direction})")
-                #         regime = "Consolidation"
-                #         direction = "None"
-                #         pair_warnings.append(f"MTF Conflict (1D is {d_direction})")
-                #     else:
-                #         pair_warnings.append(f"MTF Aligned ({d_direction})")
+                # --- PHASE 8: MTF CONSENSUS WEIGHT (Low-Weight Implementation) ---
+                if pair in data_daily:
+                    try:
+                        d_regime, d_prob, d_direction, _, _, _, _ = detect_breakout(data_daily[pair], pair, macro_data)
+                        mtf_mult = 1.0
+                        if direction in ["LONG", "SHORT"] and direction != d_direction:
+                            mtf_mult = 0.85 # Low-weight penalty for fighting the daily trend
+                            pair_warnings.append(f"MTF Conflict (Daily is {d_direction})")
+                        else:
+                            pair_warnings.append(f"MTF Aligned ({d_direction})")
+                        
+                        adjusted_prob *= mtf_mult
+                    except Exception as e:
+                        logger.warning(f"  [MTF WARNING] Could not calculate consensus for {pair}: {e}")
 
                 # --- PHASE 4: REAL-TIME NLP SENTIMENT (SerpApi + FinBERT) ---
                 if direction in ["LONG", "SHORT"] and regime in ["Trend Breakout", "Mean Reversion"]:

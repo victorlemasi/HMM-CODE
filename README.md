@@ -1,115 +1,84 @@
-# 🌐 Institutional HMM-Quant Phase 7 Node (March 2026)
+# 🌐 Institutional HMM-Quant Node: v7.2 "UNLEASHED" (March 2026)
 
-This repository contains an ultra-advanced, multi-layer AI trading node. The system is architected to operate with a **v7.0 "ENGINE SWAP"** architecture, specifically designed to solve the structural "Information Asymmetry" between historical models and the 2026 volatility regime.
+This repository contains an ultra-advanced, multi-layer AI trading node. The system is architected to operate with the **v7.2 UNLEASHED** engine, specifically designed to solve the structural "Information Asymmetry" between historical models and the hyper-volatile 2026 regime.
 
-## 🚀 v7.0 "THE ENGINE SWAP" (Architecture Refactor)
+## 🚀 v7.2 "UNLEASHED" (Fast Adaptation Engine)
 
-The v7.0 upgrade represents a fundamental shift from "Historical Observation" to **"Real-Time Predation"** by resolving three critical architectural flaws identified in previous versions:
+The v7.2 upgrade represents the "Final Bridge" between historical research and live execution. It focuses on **Zero-Lag Market Sentiment** and **Hyper-Local Adaptation**:
 
-### 👻 1. Exorcising the "Scale Ghost" (Dynamic Normalization)
-*   **Problem**: Previous versions used a "Frozen" `StandardScaler` from 2024. In the high-volatility 2026 market, this caused the bot to perpetually mislabel normal price action as "Extreme Trends."
-*   **Fix**: **Online Incremental Scaling**.
-*   **Mechanism**: The system now re-fits its mathematical "glasses" (StandardScaler) every loop using a **Rolling 500-bar Window**. The HMM now understands that 20 pips of volatility in 2026 is "normal," preventing false breakout entries.
+### ⚡ 1. The "Fast Adaptation" Loop (HMM Re-Fit)
+*   **Mechanism**: The system now performs "Warm-Start" fine-tuning on a **400-bar sliding window** every 4 hours.
+*   **Fix**: Previous versions were too sluggish to adapt to intraday volatility shifts. The "Unleashed" engine adapts to the *last 16 trading days* to label regimes with absolute 2026 precision.
 
-### 📉 2. Leading Force Features (Money Flow Acceleration)
-*   **Problem**: RSI and Momentum are lagging indicators (15-20 hour horizons). By the time they triggered, the "Alpha" of the move was already 70% consumed.
-*   **Fix**: **Leading Force & Acceleration Features**.
-*   **Mechanism**: Swapped RSI/Momentum for **Force Index (Money Flow)** and **Volatility Acceleration**. These features react to the *velocity of capital* rather than the *history of price levels*, enabling earlier entries with higher precision.
+### 🧠 2. Real-Time NLP Sentiment (FinBERT + SerpApi)
+*   **Mechanism**: Integrates the **ProsusAI/FinBERT** model with Google News via SerpApi.
+*   **Recency**: News filters are now set to the **last 1 Hour** only.
+*   **Weight**: If headlines for a pair are intensely negative (e.g., "FED Hawkish Surprise"), the system applies a **0.6x - 1.5x probabilistic multiplier** to the technical entry. One-time global caching ensures high-speed execution.
 
-### ⚖️ 3. Solving the "Kelly Fallacy" (Risk-Parity Sizing)
-*   **Problem**: Using HMM Confidence for position sizing created a "Negative Selection" bias—the bot bet the most exactly when a trend was at its most obvious (and thus most exhausted).
-*   **Fix**: **Volatility-Adjusted Risk Parity**.
-*   **Mechanism**: Decoupled sizing from HMM Confidence. Implementation of a **"Confidence Inverse" Cap**: If Confidence is $>0.92$, the bot de-risks ($0.7x$ size) to protect against exhaustion spikes. Final size is determined by **ATR Volatility Parity**, ensuring every trade risks equal "Account Intensity."
+### 📡 3. Institutional Macro Sync (OECD Standard)
+*   **Mechanism**: Transitioned all Central Bank policy trackers to the **OECD Interbank Standard (IRSTCI)** via FRED.
+*   **Fix**: Resolved the 404/Timeout issues caused by unstable secondary tickers. The bot now has a guaranteed 100% uptime feed for USD, EUR, GBP, AUD, NZD, CHF, and JPY macro rates.
 
-### 📡 4. Synchronic Macro Sync (1H Intraday Proxies)
-*   **Problem**: Daily FRED data created a 24-hour lag between macro-filters and technical-entries.
-*   **Fix**: **Intraday Macro Proxies**.
-*   **Mechanism**: Total transition to 1-Hour intraday proxies for yields (DXY, TLT Slopes, and Futures Spreads), ensuring the "Macro Bouncer" breathes at the same pace as the "Technical Hunter."
+### ⚖️ 4. Low-Weight MTF Consensus (Non-Binary Veto)
+*   **Mechanism**: Implemented Multi-Timeframe (1H vs 1D) consensus as a **Multiplier (0.85x)** rather than a hard Veto.
+*   **Benefit**: This allows the HMM to stay "Unleashed" during early trend-shifts while still penalizing trades that fight the higher-timeframe structural trend.
 
 ---
 
-## 🛡️ The 7-Layer Veto Shield: v7.0 Security
+## 🛡️ The 8-Layer Veto Shield: v7.2 Security
 
-A signal must survive all 7 layers of the updated Veto Shield before execution:
+A signal must survive the updated Veto Shield before execution:
 
 ### Layer 1: The Entropy Gate (Contextual Confidence)
-*   **Standard Floor**: $>0.70$ Confidence.
-*   **Session Lull Extension**: Confidence floor raised to **0.85** during the "Asian Lull" (21:00 - 07:00 UTC) for European pairs.
+*   **Standard Floor**: $>0.55$ Confidence (Tightened from 0.45).
+*   **Status**: Active.
 
-### Layer 2: The Carry-Trade Gravity (Yield Bias)
-*   **Logic**: If the Interest Rate Differential (IRD) is $>1.5%$, the Z-score entry threshold shifts to **1.2** for carry-positive trades and **2.0** for anti-carry trades. Don't fight the yield.
+### Layer 2: The Binary Macro Bouncer (WIN/TRAP Phase)
+*   **Threshold**: Yield Spread Momentum $> 0.05$ (5 basis points).
+*   **Function**: Vetoes signals that occur during a "Macro Trap" (where yields are moving against the technical breakout).
 
-### Layer 3: The Autocorrelation Filter (Trend persistence)
-*   **Threshold**: $\text{Lag-1 Autocorr} (\rho_1) > 0.25$.
-*   **Function**: Vetoes "Flash Spikes" that lack the structural persistence needed for a sustained trend breakout.
+### Layer 3: The Jump Watchdog (Safety Valve)
+*   **Threshold**: Z-Score $> 4.5$ (Live) / $6.5$ (Backtest).
+*   **Function**: Instantly pauses trading if a 1-minute "Jump" is detected in Gold or the specific pair, protecting against slippage during news events.
 
-### Layer 4: The PDE Absorption Filter (Institutional Churn)
-*   **Metric**: $\text{PDE} = |\text{Return}| / \text{Volume}$.
-*   **Function**: Vetoes trades where volume is massive but price progress is minimal (indicating institutional "Iceberg" absorption).
+### Layer 4: Real-Time NLP Veto (Sentiment)
+*   **Filter**: Headlines from the **last 1 Hour**.
+*   **Status**: Active.
 
-### Layer 5: The Micro-CVD Slope (Limit Order Absorption)
-*   **Threshold**: $|\text{Slope}| > 0.01$ over most recent 60 minutes.
-*   **Veto Logic**: Vetoes **LONG** if institutions are absorbing with limit-selling; Vetoes **SHORT** if limit-buying is trapping sellers.
+### Layer 5: MTF Consensus (Trend Gravity)
+*   **Weight**: $0.85x$ Penalty for timeframe conflict.
+*   **Status**: Active.
 
-### Layer 6: The XGBoost Hybrid Ensemble (Supervised Veto)
-*   **Training Target**: $Forward\_Return > 0.5 \times ATR$ in 24 hours.
-*   **Function**: The AI "rejects" the signal if the historical footprint matches a previous liquidity trap.
+### Layer 6: Alpha-to-Cost Veto (Liquidity Check)
+*   **Logic**: Expected move must be $>10x$ Transaction Cost.
+*   **Status**: Active.
 
-### Layer 7: The Commodity Liquidity Gate (Time-of-Day)
-*   **Window**: 07:00 – 17:00 UTC (London/NY overlap).
-*   **Target**: Gold (`GC=F`) and Oil (`CL=F`).
-
----
+### Layer 7: The Chandelier Exit (Trailing SL)
+*   **Logic**: No fixed Take Profit for Breakouts. Trades are trailed at **2.5 ATR** distance for maximum trend capture.
 
 ---
 
-## 📂 How the Source Code Works (Technical Breakdown)
-
-The Hunter-Quant system is a modular, event-driven trading node. Here is how the individual components interact:
+## 📂 Source Code Architecture (Quick Start)
 
 ### 1. `main.py` (The Heartbeat)
-The central orchestrator. It runs a 5-minute loop (`heartbeat`) on your T480s console.
-*   **Orchestration**: It triggers the data fetch, runs the macro filters, calls the HMM brain, and calculates portfolio weights.
-*   **Safety Watchdog**: Every loop, it runs a 1-minute "Jump Detection" check on Gold and Oil to pause trading if a geopolitical shock occurs.
-*   **Trade Tracker**: Manages entries, Take Profits, and Stop Losses in `trade_tracker.json` to ensure persistence across restarts.
+Runs the 5-minute `heartbeat` loop. Orchestrates NLP, MTF, and execution logic. Executes via the MT5 Bridge.
 
 ### 2. `data_fetcher.py` (The Eyes)
-Handles all inbound market information.
-*   **MT5 Bridge**: Connects directly to the MetaTrader 5 terminal to pull zero-delay institutional ticks for `XAUUSD`, `WTI`, and Forex.
-*   **Yahoo/FRED Fallback**: Pulls historical daily data for MTF (Multi-Timeframe) consensus and monthly FRED data for central bank rates.
-*   **Returns Matrix**: Converts raw price data into the logarithmic returns matrix required for HMM clustering.
+Handles **Zero-Lag MT5 Ticks** and Institutional FRED feeds. Synchronizes the Watchdog for multi-pair safety.
 
 ### 3. `hmm_analysis.py` (The Brain)
-Implements the core Unsupervised Machine Learning logic.
-*   **Gaussian HMM States**: Classifies the market into three regimes: `Consolidation` (Chop), `Mean Reversion` (Reversals), and `Trend Breakout` (Momemtum).
-*   **Warm-Start Adaptation**: Instead of using old models, it performs "Fine-Tuning" on the last 400 bars to adapt to the last hour's volatility.
-*   **Dynamic Exits**: Calculates SL and TP levels based on **ATR Multipliers** (Average True Range).
+Classifies market regimes (`Consolidation`, `Mean Reversion`, `Trend Breakout`) and calculates dynamic price floors (0.0001) for all exit levels.
 
-### 4. `macro_bouncer.py` (The Judge)
-The fundamental filter that prevents "Technical Hallucinations."
-*   **Gravity Curve Multipliers**: It looks at the **Yield Spread Momentum** (e.g., US10Y vs GER10Y). 
-*   **Bias Weighting**: If a technical LONG signal conflicts with the yield trend, this module penalizes the confidence score (e.g., 0.7x weight). If aligned, it boosts it (1.3x).
-
-### 5. `config.py` (The Nervous System)
-The single point of truth for the entire bot.
-*   **Thresholds**: Sets the HMM confidence floors (0.55), Z-Scores (1.1), and ATR buffers.
-*   **Credentials**: Securely stores your MT5 Demo login (`5048601874`) and broker server details.
-*   **Symbol Map**: Translates Yahoo tickers to Broker symbols (e.g., `GC=F` -> `XAUUSD`).
-
-### 6. `train_hmm.py` (The Memory)
-Handles the "Heavy Lifting" of offline training. 
-*   **Baum-Welch Fitting**: Runs multi-threaded training on 1 year of historical data to create the "Base Models" stored in `hmm_models/`. 
-
-### 7. `clustering.py` & `rebalancer.py` (The Strategists)
-*   **Clustering**: Groups the 22 pairs into clusters of "Similar Movement" to avoid over-exposure to a single currency (like USD).
-*   **Markowitz Optimization**: Uses Modern Portfolio Theory to assign weights to active signals, ensuring the highest Sharpe Ratio.
+### 4. `backtest.py` (The Research Engine)
+**100% Synchronized** with the live `main.py` logic. Mirroring 400-bar Train Windows, Step Size 4, and the Binary Macro Gate for research fidelity.
 
 ---
 
-## 🛠️ Performance & Scalability
-- **Parallelization**: 8-Core Baum-Welch re-fitting via `joblib`.
-- **Latency**: 5-Minute loop (300s) optimized for real-time MT5 ticks.
-- **Hardware**: Optimized for Intel i5/i7 (Lenovo T480s) performance.
+## 🛠️ Performance & Credentials
+- **Account**: MT5 Demo (`5048601874`).
+- **Data Source**: MT5 Institutional Terminal.
+- **Latency**: Sub-300ms execution logic.
+- **Hardware**: Optimized for Intel i7 / 16GB RAM (Lenovo T480s).
 
 ---
-**March 2026 Audit Status**: 🟢 v7.2 UNLEASHED - **Live MT5 Integration Functional.**
+**March 2026 Audit Status**: 🟢 v7.2 UNLEASHED - **PROD SYNCED & LIVE.**
