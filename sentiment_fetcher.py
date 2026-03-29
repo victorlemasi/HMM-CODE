@@ -43,21 +43,26 @@ def get_macro_headlines(query: str = "Federal Reserve OR ECB OR interest rates O
         print(f" [SERPAPI ERROR] Failed to fetch headlines: {e}")
         return []
 
+_NLP_PIPELINE = None
+
 def calculate_nlp_sentiment_multiplier(headlines: list) -> float:
     """
     Passes headlines through the ProsusAI/finbert model.
     Returns a probability multiplier to be factored into the HMM Prediction.
     e.g. 1.0 (Neutral), 0.5 (Fear/Veto), 1.3 (Raging Bull)
     """
+    global _NLP_PIPELINE
     if not headlines:
         return 1.0
         
     try:
         from transformers import pipeline
-        # finbert categorizes as "positive", "negative", "neutral"
-        nlp = pipeline("sentiment-analysis", model="ProsusAI/finbert")
+        # Lazy initialization
+        if _NLP_PIPELINE is None:
+            print("  [NLP] Initializing FinBERT model (one-time load)...")
+            _NLP_PIPELINE = pipeline("sentiment-analysis", model="ProsusAI/finbert")
         
-        results = nlp(headlines)
+        results = _NLP_PIPELINE(headlines)
         
         score = 0
         for res in results:
