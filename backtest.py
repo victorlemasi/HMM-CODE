@@ -148,7 +148,6 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None
         macro_bias_val = check_fundamental_gatekeeper(symbol, df.index[t], macro_data) if desired != 0 else ""
         
         # Determine macro phase for trigger logic
-        from macro_bouncer import check_macro_alignment
         macro_phase = check_macro_alignment(symbol, direction_hmm, macro_data) if desired != 0 else "TRAP_PHASE"
         
         is_scalp_active = (symbol == "CL=F" and "SCALP_ONLY" in macro_bias_val)
