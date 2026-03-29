@@ -40,8 +40,8 @@ from config import CURRENCY_PAIRS, MAJORS_FIX_LIST, WATCHDOG_TICKERS, WATCHDOG_J
 # ─── Configuration ─────────────────────────────────────────────────────────────
 BACKTEST_PERIOD = "6mo"          # Historical data to fetch
 BACKTEST_INTERVAL = "1h"         # Bar interval
-TRAIN_WINDOW = 1200               # Bars used to train HMM before each signal (Goldilocks zone)
-STEP_SIZE = 24                   # Re-fit HMM every N bars (24 = daily)
+TRAIN_WINDOW = 400               # Bars used to train HMM (v7.2 Hyper-Local)
+STEP_SIZE = 4                    # Re-fit freq (High Fidelity)
 TRANSACTION_COST = 0.00005        # 0.5 pips per round trip (Institutional Default)
 
 # Load XGBoost Veto Model (Phase 4 Setup)
