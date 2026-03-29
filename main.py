@@ -333,9 +333,9 @@ def main():
         summary['Direction'] = pd.Series(breakout_directions)
         summary['Cluster'] = pd.Series(cluster_mapping)
         summary['State'] = pd.Series(macro_statuses)
-        summary['Daily_Trend'] = pd.Series(mtf_directions)
         summary['Macro_Weight'] = pd.Series(macro_weights)
         summary['Warnings'] = pd.Series(warnings_dict)
+        summary['Daily_Trend'] = pd.Series(mtf_directions)
         
         logger.info("Risk Overlay")
         if is_gpr_spike:
