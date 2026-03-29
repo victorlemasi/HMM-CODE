@@ -205,9 +205,6 @@ def main():
                         mtf_mult = 1.0
                         if direction in ["LONG", "SHORT"] and direction != d_direction:
                             mtf_mult = 0.95 # Ultra-low weight (5% penalty) to guide but not flip trades
-                            pair_warnings.append(f"MTF Conflict (Daily is {d_direction})")
-                        else:
-                            pair_warnings.append(f"MTF Aligned ({d_direction})")
                         
                         adjusted_prob *= mtf_mult
                     except Exception as e:
