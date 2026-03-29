@@ -109,40 +109,19 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None
         if regime in ('Trend Breakout', 'Mean Reversion'):
             direction_hmm = 'LONG' if direction == 'LONG' else 'SHORT'
             
-            # --- APPLY MACRO WEIGHTING (Stochastic Logic) ---
-            macro_weight = get_macro_weight(symbol, direction_hmm, macro_data)
-            adjusted_prob = prob * macro_weight
+            # --- v7.2 SYNCHRONIZED MACRO GATING (Same as main.py) ---
+            macro_phase = check_macro_alignment(symbol, direction_hmm, macro_data)
             
-            # --- XGBOOST VETO (Institutional AI Filter) ---
-            if xgb_model is not None:
-                # Features: state_id, hmm_confidence, atr_normalized
-                xgb_features = pd.DataFrame([{
-                    'state_id': state_id,
-                    'hmm_confidence': prob,
-                    'atr_normalized': current_atr / df['Close'].iloc[t]
-                }])
-                
-                # Predict (1 = Allow, 0 = Veto)
-                xgb_prediction = xgb_model.predict(xgb_features)[0]
-                if xgb_prediction == 0:
-                    desired = 0
-                else:
-                    # Valid signal
-                    desired = 1 if direction_hmm == 'LONG' else -1
+            # Binary Veto: If TRAP_PHASE, we do not enter (Institutional Gate)
+            if macro_phase == "TRAP_PHASE":
+                desired = 0
             else:
-                # Valid signal (No XGB available)
-                desired = 1 if direction_hmm == 'LONG' else -1
+                # Valid signal
+                desired = 1 if direction_hmm == "LONG" else -1
 
-            # --- LULL PENALTY & CONFIDENCE VETO ---
-            current_dt = df.index[t]
-            hour = current_dt.hour
-            is_major = symbol in MAJORS_FIX_LIST
-            
-            conf_thresh = MAJORS_MIN_CONFIDENCE if is_major else MINORS_MIN_CONFIDENCE
-            if is_major and LUNCH_ZONE[0] <= hour < LUNCH_ZONE[1]:
-                conf_thresh = 0.90 # Extreme confidence required during London Lunch
-            
-            if adjusted_prob < conf_thresh:
+            # --- CONFIDENCE VETO ---
+            conf_thresh = MAJORS_MIN_CONFIDENCE if symbol in MAJORS_FIX_LIST else MINORS_MIN_CONFIDENCE
+            if prob < conf_thresh:
                 desired = 0
                 
             # --- ALPHA-TO-COST VETO (Fix 3) ---
@@ -151,17 +130,18 @@ def run_backtest_for_pair(symbol: str, df: pd.DataFrame, macro_data: dict = None
                 desired = 0
                 if t == TRAIN_WINDOW: print(f"      [COST VETO] {symbol} Volatility too low for cost.")
         
-        # --- SIMULATED WATCHDOG (Audit Sync) ---
+        # --- SIMULATED WATCHDOG (v7.2 Synced) ---
         if symbol in WATCHDOG_TICKERS and desired != 0:
             if symbol == "GC=F":
                 score = calculate_mahalanobis_distance(df.iloc[max(0, t-20):t+1])
             else:
                 score = calculate_z_score(df['Close'].iloc[max(0, t-100):t+1])
                 
-            threshold = WATCHDOG_JUMP_THRESHOLDS.get(symbol, WATCHDOG_JUMP_THRESHOLDS['DEFAULT'])
+            # Adjust threshold for 1h vs 1m bars (Live=4.5, Backtest=6.5 to account for trend volatility)
+            threshold = 6.5 if not symbol == "GC=F" else 15.0 
             if abs(score) > threshold:
                 desired = 0
-                print(f"      [WATCHDOG VETO] {symbol} Jump Detected! Score: {score:.2f} > {threshold}")
+                if t == TRAIN_WINDOW: print(f"      [WATCHDOG VETO] {symbol} Synced Jump Detected!")
 
         # Calculate levels for the NEW desired position
         current_price = df['Close'].iloc[t]
