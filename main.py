@@ -196,6 +196,15 @@ def main():
                         
                 adjusted_prob = prob * macro_weight
                 
+                # --- PHASE 4: REAL-TIME NLP SENTIMENT (SerpApi + FinBERT) ---
+                if direction in ["LONG", "SHORT"] and (regime in ["Trend Breakout", "Mean Reversion"]):
+                    from sentiment_fetcher import get_realtime_sentiment_modifier
+                    nlp_mult = get_realtime_sentiment_modifier(pair)
+                    if nlp_mult != 1.0:
+                        logger.info(f"  {pair} | NLP Sentiment Mod: {nlp_mult:.2f}x")
+                        adjusted_prob *= nlp_mult
+                        pair_warnings.append(f"NLP Sentiment: {nlp_mult:.2f}x")
+                
                 # --- PHASE 8: MTF CONSENSUS WEIGHT (Ultra-Low Weight) ---
                 if pair in data_daily:
                     try:
@@ -211,17 +220,7 @@ def main():
                         adjusted_prob *= mtf_mult
                     except Exception as e:
                         logger.warning(f"  [MTF WARNING] Could not calculate consensus for {pair}: {e}")
-                else:
-                    mtf_directions[pair] = "Unknown"
-
-                # --- PHASE 4: REAL-TIME NLP SENTIMENT (SerpApi + FinBERT) ---
-                if direction in ["LONG", "SHORT"] and regime in ["Trend Breakout", "Mean Reversion"]:
-                    from sentiment_fetcher import get_realtime_sentiment_modifier
-                    nlp_mult = get_realtime_sentiment_modifier(pair)
-                    if nlp_mult != 1.0:
-                        logger.info(f"  {pair} | NLP Sentiment Mod: {nlp_mult:.2f}x")
-                        adjusted_prob *= nlp_mult
-                        pair_warnings.append(f"NLP Sentiment: {nlp_mult:.2f}x")
+                
                         
                 # --- PHASE 5: HYBRID AI ENSEMBLING (XGBoost) (DISABLED in Unleashed Mode) ---
                 # if regime in ["Trend Breakout", "Mean Reversion"] and direction in ["LONG", "SHORT"]:
